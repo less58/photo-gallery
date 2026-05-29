@@ -19,21 +19,44 @@ export default function AuthLoginPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    if (authError || !data.user) {
-      setError('מייל או סיסמה שגויים')
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError('חסרים פרטי חיבור ל-Supabase. צריך לעשות Redeploy אחרי הוספת משתני הסביבה.')
       setLoading(false)
       return
     }
 
-    if (data.user.email === SUPER_ADMIN_EMAIL) {
-      router.push('/admin')
-    } else {
-      router.push('/dashboard')
+    try {
+      const supabase = createClient()
+      const signIn = supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      })
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 15000)
+      )
+
+      const { data, error: authError } = await Promise.race([signIn, timeout])
+
+      if (authError || !data.user) {
+        setError('מייל או סיסמה שגויים')
+        setLoading(false)
+        return
+      }
+
+      if (data.user.email === SUPER_ADMIN_EMAIL) {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
+      router.refresh()
+    } catch (err) {
+      console.error('Login error:', err)
+      setError('החיבור ל-Supabase נכשל. בדקי שהאתר נבנה מחדש ושכתובת Supabase תקינה.')
+      setLoading(false)
     }
-    router.refresh()
   }
 
   return (
