@@ -56,7 +56,7 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       color={String(ph.brand_color || '#C97B73')}
       portfolioId={id}
       portfolioTitle={portfolio.title ?? ''}
-      coverUrl={(ph.logo_url as string) ?? null}
+      coverUrl={(portfolio.cover_url as string) ?? null}
       instructions={portfolio.instructions ?? null}
       photographerName={String(ph.name || '')}
       logoUrl={(ph.logo_url as string) ?? null}
