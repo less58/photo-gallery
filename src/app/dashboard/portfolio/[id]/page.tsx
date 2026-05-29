@@ -3,9 +3,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import PortfolioTabs from '@/components/PortfolioTabs'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortfolioDetailPage(props: PageProps<'/dashboard/portfolio/[id]'>) {
   const { id } = await props.params
   const supabase = await createClient()
+  const admin = createAdminClient()
 
   const { data: portfolio, error } = await supabase
     .from('portfolios')
@@ -18,18 +21,19 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
   // Generate magic_token for older portfolios that don't have one yet
   if (!portfolio.magic_token) {
     const token = crypto.randomUUID()
-    const admin = createAdminClient()
     await admin.from('portfolios').update({ magic_token: token }).eq('id', id)
     portfolio.magic_token = token
   }
 
-  const { data: sessions } = await supabase
+  const { data: sessions, error: sessErr } = await admin
     .from('sessions')
-    .select('*, photos(id, url, thumbnail_url, sort_order, session_id, name)')
+    .select('*, photos(*)')
     .eq('portfolio_id', id)
     .order('sort_order')
 
-  const { data: selections } = await supabase
+  if (sessErr) console.error('[portfolio page] sessions error:', sessErr.message)
+
+  const { data: selections } = await admin
     .from('selections')
     .select('photo_id, status')
     .eq('portfolio_id', id)

@@ -2,15 +2,25 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest } from 'next/server'
 
+// Columns that might not exist yet — try removing them one by one on error
+const OPTIONAL_COLUMNS = [
+  'watermark_public_id', 'watermark_url',
+  'logo_public_id',
+  'email_subject', 'email_body', 'email_provider',
+  'gmail_address', 'gmail_app_password',
+  'resend_api_key', 'sender_email', 'sender_display_name',
+  'default_instructions', 'send_client_emails',
+]
+
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
+  const email = session.user.email!
 
   const body = await req.json()
   const admin = createAdminClient()
 
-  // Build full update object
   const update: Record<string, unknown> = {}
   if (body.name !== undefined)               update.name = body.name
   if (body.brandColor !== undefined)         update.brand_color = body.brandColor
@@ -24,25 +34,42 @@ export async function PATCH(req: NextRequest) {
   if (body.resendApiKey !== undefined)       update.resend_api_key = body.resendApiKey
   if (body.emailSubject !== undefined)       update.email_subject = body.emailSubject
   if (body.emailBody !== undefined)          update.email_body = body.emailBody
-  if (body.emailProvider !== undefined)        update.email_provider = body.emailProvider
-  if (body.gmailAddress !== undefined)         update.gmail_address = body.gmailAddress
-  if (body.gmailAppPassword !== undefined)     update.gmail_app_password = body.gmailAppPassword
-  if (body.senderDisplayName !== undefined)    update.sender_display_name = body.senderDisplayName
+  if (body.emailProvider !== undefined)      update.email_provider = body.emailProvider
+  if (body.gmailAddress !== undefined)       update.gmail_address = body.gmailAddress
+  if (body.gmailAppPassword !== undefined)   update.gmail_app_password = body.gmailAppPassword
+  if (body.senderDisplayName !== undefined)  update.sender_display_name = body.senderDisplayName
 
-  const { error } = await admin.from('photographers').update(update).eq('email', user.email!)
+  // Try the full update; if a column is missing, remove it and retry
+  let current = { ...update }
+  const missing: string[] = []
 
-  if (error) {
-    // If optional columns don't exist, retry without them
-    if (error.code === '42703' || error.message?.includes('column')) {
-      const withoutOptional = { ...update }
-      delete withoutOptional.email_subject
-      delete withoutOptional.email_body
-      const { error: e2 } = await admin.from('photographers').update(withoutOptional).eq('email', user.email!)
-      if (e2) return Response.json({ error: e2.message }, { status: 500 })
-      return Response.json({ ok: true, warning: 'הרץ SQL להוסיף email_subject/email_body' })
+  for (let attempt = 0; attempt <= OPTIONAL_COLUMNS.length; attempt++) {
+    const { error } = await admin.from('photographers').update(current).eq('email', email)
+    if (!error) {
+      if (missing.length > 0) {
+        return Response.json({ ok: true, missingColumns: missing })
+      }
+      return Response.json({ ok: true })
     }
-    return Response.json({ error: error.message }, { status: 500 })
+
+    const isColumnError = error.code === '42703' || error.message?.toLowerCase().includes('column')
+    if (!isColumnError) {
+      return Response.json({ error: error.message }, { status: 500 })
+    }
+
+    // Find which column is missing from the error message
+    const found = OPTIONAL_COLUMNS.find(col => error.message.includes(col) && current[col] !== undefined)
+    if (found) {
+      missing.push(found)
+      delete current[found]
+    } else {
+      // Can't identify which column — remove all optional ones that are in the update
+      for (const col of OPTIONAL_COLUMNS) delete current[col]
+      const { error: e2 } = await admin.from('photographers').update(current).eq('email', email)
+      if (e2) return Response.json({ error: e2.message }, { status: 500 })
+      return Response.json({ ok: true, missingColumns: OPTIONAL_COLUMNS })
+    }
   }
 
-  return Response.json({ ok: true })
+  return Response.json({ error: 'לא ניתן לשמור' }, { status: 500 })
 }

@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(bytes)
 
   const transformation: object[] = folder !== 'watermarks'
-    ? [{ width: 1600, crop: 'limit', quality: 'auto' }]
+    ? [{ width: 1200, crop: 'limit', quality: 'auto:good' }]
     : []
 
   if (watermarkPublicId) {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   )
 
   const thumbnailUrl = folder !== 'watermarks' && folder !== 'logos'
-    ? result.secure_url.replace('/upload/', '/upload/w_600,q_auto/')
+    ? result.secure_url.replace('/upload/', '/upload/w_400,q_auto:good/')
     : result.secure_url
 
   const dominantColors = result.colors?.slice(0, 6).map(([hex]) => hex) ?? []

@@ -94,13 +94,20 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
           </div>
 
           <div>
-            <label className={lbl}>
-              מכסת תמונות —
-              <span className="font-bold text-stone-800 mr-1">{form.quota}</span>
-            </label>
-            <input type="range" min={1} max={300} value={form.quota}
-              onChange={e => update('quota', parseInt(e.target.value))}
-              className="w-full mt-1" style={{ accentColor: 'var(--brand)' }} />
+            <label className={lbl}>מכסת תמונות</label>
+            <div className="flex items-center gap-3 mt-1">
+              <input type="range" min={1} max={300} value={form.quota}
+                onChange={e => update('quota', parseInt(e.target.value))}
+                className="flex-1" style={{ accentColor: 'var(--brand)' }} />
+              <input
+                type="number" min={1} max={300} value={form.quota}
+                onChange={e => {
+                  const v = Math.min(300, Math.max(1, parseInt(e.target.value) || 1))
+                  update('quota', v)
+                }}
+                className="w-16 px-2 py-1.5 rounded-lg border border-stone-200 bg-white text-sm text-center focus:outline-none focus:ring-2 focus:ring-rose-200"
+              />
+            </div>
           </div>
 
           <div>

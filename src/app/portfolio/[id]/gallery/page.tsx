@@ -4,6 +4,8 @@ import { notFound, redirect } from 'next/navigation'
 import GalleryClient from '@/components/GalleryClient'
 import type { Photo } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gallery'>) {
   const { id } = await props.params
 

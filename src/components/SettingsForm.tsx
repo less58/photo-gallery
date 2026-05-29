@@ -82,17 +82,23 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
       fd.append('file', file)
       fd.append('folder', 'watermarks')
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw new Error('העלאה נכשלה')
       const data = await res.json()
+      if (!data.url) throw new Error('לא התקבל URL')
       setWatermarkUrl(data.url)
       setWatermarkPublicId(data.publicId)
-      await fetch('/api/dashboard/settings', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      const patch = await fetch('/api/dashboard/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ watermarkUrl: data.url, watermarkPublicId: data.publicId }),
       })
-      toast('סימן המים הועלה בהצלחה')
-    } catch {
-      toast('שגיאה בהעלאת סימן המים', 'error')
+      if (!patch.ok) {
+        const err = await patch.json().catch(() => ({}))
+        throw new Error(err.error || 'שגיאה בשמירה')
+      }
+      toast('סימן המים הועלה ונשמר בהצלחה ✓')
+    } catch (e) {
+      toast(`שגיאה בסימן המים: ${(e as Error).message}`, 'error')
     }
     setUploadingWatermark(false)
   }
@@ -104,6 +110,9 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name, brandColor,
+        logoUrl: logoUrl || null,
+        watermarkUrl: watermarkUrl || null,
+        watermarkPublicId: watermarkPublicId || null,
         defaultInstructions: defaultInstructions || null,
         sendClientEmails: sendEmails,
         senderDisplayName: senderDisplayName || ph.name,
@@ -118,7 +127,11 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
     setSaving(false)
     const result = await res.json()
     if (res.ok) {
-      toast(result.warning ? `נשמר — ${result.warning}` : 'ההגדרות נשמרו')
+      if (result.missingColumns?.length) {
+        toast('חלק מהשדות נשמרו — עמודות חסרות בDB. הרץ את ה-SQL למטה.', 'info')
+      } else {
+        toast('ההגדרות נשמרו ✓')
+      }
       router.refresh()
     } else {
       toast(`שגיאה בשמירה: ${result.error}`, 'error')

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X } from 'lucide-react'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
 
@@ -19,6 +19,12 @@ type Props = {
 }
 type Tab = 'photos' | 'selected'
 
+const STATUS_COLOR: Record<string, string> = {
+  approved: '#22C55E',
+  rejected: '#EF4444',
+  maybe: '#F59E0B',
+}
+
 export default function PortfolioTabs({ portfolio, sessions: initialSessions, selections, photographer }: Props) {
   const toast = useToast()
   const [tab, setTab] = useState<Tab>('photos')
@@ -32,7 +38,27 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [copied, setCopied] = useState(false)
   const [coverUrl, setCoverUrl] = useState<string | null>(portfolio.cover_url)
   const [uploadingCover, setUploadingCover] = useState(false)
+  const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null)
+  const [loadingData, setLoadingData] = useState(true)
+  const creatingSessionRef = useRef(false)
+
   useEffect(() => { setSiteOrigin(window.location.origin) }, [])
+
+  // Always fetch fresh data from API on mount (bypasses any Next.js router/server cache)
+  useEffect(() => {
+    async function refresh() {
+      setLoadingData(true)
+      try {
+        const res = await fetch(`/api/dashboard/portfolio/${portfolio.id}`, { cache: 'no-store' })
+        if (!res.ok) { setLoadingData(false); return }
+        const data = await res.json()
+        if (Array.isArray(data.sessions)) setSessions(data.sessions)
+      } catch { /* ignore */ }
+      setLoadingData(false)
+    }
+    refresh()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolio.id])
   const fileRef = useRef<HTMLInputElement>(null)
   const coverRef = useRef<HTMLInputElement>(null)
 
@@ -40,6 +66,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const allPhotos = sessions.flatMap(s => s.photos || [])
   const approved = selections.filter(s => s.status === 'approved')
   const approvedPhotos = approved.map(s => allPhotos.find(p => p.id === s.photo_id)).filter(Boolean) as Photo[]
+  const selectedPhotoIds = new Set(selections.map(s => s.photo_id))
   const magicLink = portfolio.magic_token ? `${siteOrigin}/enter/${portfolio.magic_token}` : ''
 
   async function copyLink() {
@@ -74,15 +101,24 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
   async function getOrCreateDefaultSession(): Promise<string | null> {
     if (sessions.length > 0) return sessions[0].id
-    const res = await fetch('/api/dashboard/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ portfolioId: portfolio.id, name: 'כללי' }),
-    })
-    if (!res.ok) { toast('שגיאה ביצירת סשן', 'error'); return null }
-    const data = await res.json()
-    setSessions(prev => [...prev, { ...data, photos: [] }])
-    return data.id
+    if (creatingSessionRef.current) return null
+    creatingSessionRef.current = true
+    try {
+      const res = await fetch('/api/dashboard/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolioId: portfolio.id, name: 'כללי' }),
+      })
+      if (!res.ok) { toast('שגיאה ביצירת סשן', 'error'); return null }
+      const data = await res.json()
+      setSessions(prev => {
+        if (prev.some(s => s.id === data.id)) return prev
+        return [...prev, { ...data, photos: [] }]
+      })
+      return data.id
+    } finally {
+      creatingSessionRef.current = false
+    }
   }
 
   async function addSession() {
@@ -110,56 +146,79 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     const fileArr = Array.from(files)
     const total = fileArr.length
     let completed = 0
+    let dbErrors = 0
+    let cloudErrors = 0
     setUploadProgress({ current: 0, total })
 
-    const BATCH = 3
+    const CONCURRENCY = 5  // 5 parallel = smooth progress + good speed
     const newPhotos: Photo[] = []
 
-    for (let i = 0; i < fileArr.length; i += BATCH) {
-      const batch = fileArr.slice(i, i + BATCH)
-      const results = await Promise.allSettled(batch.map(async (file) => {
-        const name = file.name.replace(/\.[^.]+$/, '')
-        const fd = new FormData()
-        fd.append('file', file)
-        fd.append('folder', `portfolios/${portfolio.id}`)
-        fd.append('name', name)
-        if (photographer.watermark_public_id) fd.append('watermarkPublicId', photographer.watermark_public_id)
+    async function uploadOne(file: File): Promise<Photo | null> {
+      const name = file.name.replace(/\.[^.]+$/, '')
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('folder', `portfolios/${portfolio.id}`)
+      fd.append('name', name)
+      if (photographer.watermark_public_id) fd.append('watermarkPublicId', photographer.watermark_public_id)
 
-        const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
-        if (!uploadRes.ok) throw new Error('Upload failed')
-        const { url, thumbnailUrl } = await uploadRes.json()
-        if (!url) throw new Error('No URL')
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
+      if (!uploadRes.ok) { cloudErrors++; return null }
+      const { url, thumbnailUrl } = await uploadRes.json()
+      if (!url) { cloudErrors++; return null }
 
-        const addRes = await fetch('/api/dashboard/photo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, url, thumbnailUrl, name }),
-        })
-        if (!addRes.ok) {
-          const err = await addRes.json()
-          throw new Error(err.error || 'DB insert failed')
-        }
-        return await addRes.json() as Photo
-      }))
-
-      for (const r of results) {
-        if (r.status === 'fulfilled' && r.value?.id) newPhotos.push(r.value)
-        else if (r.status === 'rejected') console.error('Upload error:', r.reason)
-        completed++
-        setUploadProgress({ current: completed, total })
+      const addRes = await fetch('/api/dashboard/photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, url, thumbnailUrl, name }),
+      })
+      if (!addRes.ok) {
+        console.error('DB insert failed:', addRes.status, await addRes.text().catch(() => ''))
+        dbErrors++
+        return null
       }
+      return await addRes.json() as Photo
     }
+
+    // Semaphore-based parallel upload — progress updates per individual photo
+    await new Promise<void>((resolve) => {
+      let active = 0
+      let index = 0
+
+      function startNext() {
+        while (active < CONCURRENCY && index < fileArr.length) {
+          const file = fileArr[index++]
+          active++
+          uploadOne(file).then(photo => {
+            if (photo?.id) newPhotos.push(photo)
+            completed++
+            setUploadProgress({ current: completed, total })
+            active--
+            if (index < fileArr.length) {
+              startNext()
+            } else if (active === 0) {
+              resolve()
+            }
+          })
+        }
+        if (active === 0 && index >= fileArr.length) resolve()
+      }
+
+      startNext()
+    })
 
     setSessions(prev => prev.map(s =>
       s.id === sessionId ? { ...s, photos: [...(s.photos || []), ...newPhotos] } : s
     ))
     setUploadProgress(null)
+
     if (newPhotos.length === total) {
       toast(`${newPhotos.length} תמונות הועלו בהצלחה`)
     } else if (newPhotos.length > 0) {
-      toast(`${newPhotos.length} מתוך ${total} תמונות הועלו (${total - newPhotos.length} נכשלו)`, 'info')
+      toast(`${newPhotos.length} מתוך ${total} הועלו (${total - newPhotos.length} נכשלו)`, 'info')
+    } else if (dbErrors > 0) {
+      toast('שגיאה בשמירה למסד — נסי להתנתק ולהתחבר מחדש', 'error')
     } else {
-      toast('העלאה נכשלה — בדקי את קובץ ה-.env.local', 'error')
+      toast('העלאה נכשלה — בדקי חיבור ומפתחות Cloudinary', 'error')
     }
   }
 
@@ -174,14 +233,63 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     fileRef.current?.click()
   }
 
+  async function deletePhoto(photoId: string) {
+    if (selectedPhotoIds.has(photoId)) {
+      toast('התמונה נבחרה על ידי הלקוחה ולא ניתן למחוק אותה', 'error')
+      return
+    }
+    if (!confirm('למחוק את התמונה? לא ניתן לשחזר.')) return
+    setDeletingPhoto(photoId)
+    try {
+      const res = await fetch('/api/dashboard/photo', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photoId }),
+      })
+      if (res.ok) {
+        setSessions(prev => prev.map(s => ({
+          ...s,
+          photos: (s.photos || []).filter(p => p.id !== photoId),
+        })))
+        toast('התמונה נמחקה')
+      } else {
+        const data = await res.json()
+        toast(data.error || 'שגיאה במחיקה', 'error')
+      }
+    } catch { toast('שגיאה', 'error') }
+    finally { setDeletingPhoto(null) }
+  }
+
+  function photoName(photo: Photo): string {
+    if (photo.name) return photo.name
+    // Fallback: extract original name from Cloudinary URL
+    const match = photo.url?.match(/\/([^/]+?)(?:\.[^.]+)?$/)
+    return match ? match[1] : photo.id
+  }
+
   function downloadReport() {
+    const bySession: Record<string, { sessionName: string; photos: Photo[] }> = {}
+    for (const photo of approvedPhotos) {
+      const session = sessions.find(s => s.id === photo.session_id)
+      const sid = photo.session_id
+      if (!bySession[sid]) bySession[sid] = { sessionName: session?.name || 'כללי', photos: [] }
+      bySession[sid].photos.push(photo)
+    }
+
     const lines = [
       `דוח תמונות שנבחרו — ${portfolio.title}`,
       `לקוחה: ${portfolio.client_email}`,
       `תאריך: ${new Date().toLocaleDateString('he-IL')}`,
-      '', `סה"כ נבחרו: ${approvedPhotos.length} תמונות`, '',
-      ...approvedPhotos.map((p, i) => `${i + 1}. ${p.name || p.id}`),
+      `סה"כ נבחרו: ${approvedPhotos.length} מתוך ${portfolio.quota}`,
+      '',
     ]
+
+    for (const { sessionName, photos } of Object.values(bySession)) {
+      if (Object.keys(bySession).length > 1) lines.push(`— ${sessionName} —`)
+      photos.forEach((p, i) => lines.push(`${i + 1}. ${photoName(p)}`))
+      lines.push('')
+    }
+
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -193,7 +301,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     <div>
       {/* Header */}
       <div className="flex items-center gap-3 mb-5">
-        <Link href="/dashboard" className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors">
+        <Link href="/dashboard" prefetch={false} className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors">
           <ArrowRight size={18} />
         </Link>
         <div className="flex-1 min-w-0">
@@ -202,7 +310,9 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         </div>
         <div className="text-right text-xs text-stone-400 shrink-0">
           <div>{allPhotos.length} תמונות</div>
-          <div>{approvedPhotos.length}/{portfolio.quota} נבחרו</div>
+          <div style={{ color: approvedPhotos.length > 0 ? color : undefined }}>
+            {approvedPhotos.length}/{portfolio.quota} נבחרו
+          </div>
         </div>
       </div>
 
@@ -299,8 +409,9 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       {tab === 'photos' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-stone-600">
-              {sessions.length === 0 ? 'לא נוצרו סשנים' : `${sessions.length} סשנים`}
+            <span className="text-sm font-medium text-stone-600 flex items-center gap-2">
+              {loadingData && <span className="inline-block w-3 h-3 border-2 border-stone-300 border-t-stone-500 rounded-full animate-spin" />}
+              {sessions.length === 0 ? (loadingData ? 'טוענת...' : 'לא נוצרו סשנים') : `${sessions.length} סשנים`}
             </span>
             <div className="flex gap-2">
               <button type="button" onClick={() => triggerUpload()}
@@ -364,23 +475,56 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                 </div>
               ) : (
                 <div className="p-3 grid grid-cols-5 sm:grid-cols-7 md:grid-cols-10 gap-1.5">
-                  {session.photos.map(photo => (
-                    <div key={photo.id} className="aspect-square rounded-md overflow-hidden bg-stone-100 relative group">
-                      {(photo.thumbnail_url || photo.url) ? (
-                        <Image
-                          src={photo.thumbnail_url || photo.url!}
-                          alt={photo.name || ''}
-                          fill unoptimized
-                          className="object-cover"
-                        />
-                      ) : null}
-                      {photo.name && (
-                        <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[8px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                          {photo.name}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {session.photos.map(photo => {
+                    const sel = selections.find(s => s.photo_id === photo.id)
+                    const isSelected = selectedPhotoIds.has(photo.id)
+                    const isDeleting = deletingPhoto === photo.id
+                    return (
+                      <div key={photo.id} className="aspect-square rounded-md overflow-hidden bg-stone-100 relative group"
+                        style={sel ? { outline: `2px solid ${STATUS_COLOR[sel.status]}`, outlineOffset: '-2px' } : undefined}>
+                        {(photo.thumbnail_url || photo.url) ? (
+                          <Image
+                            src={photo.thumbnail_url || photo.url}
+                            alt={photo.name || ''}
+                            fill unoptimized
+                            className="object-cover"
+                          />
+                        ) : null}
+
+                        {/* Selection badge */}
+                        {sel && (
+                          <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                            style={{ background: STATUS_COLOR[sel.status] }}>
+                            {sel.status === 'approved' ? <Check size={9} className="text-white" />
+                              : sel.status === 'rejected' ? <X size={9} className="text-white" />
+                              : <HelpCircle size={9} className="text-white" />}
+                          </div>
+                        )}
+
+                        {/* Photo name on hover */}
+                        {photo.name && (
+                          <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[8px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                            {photo.name}
+                          </div>
+                        )}
+
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={() => deletePhoto(photo.id)}
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded flex items-center justify-center transition-opacity ${isSelected ? 'opacity-0 group-hover:opacity-60 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100'}`}
+                          style={{ background: 'rgba(0,0,0,0.6)' }}
+                          title={isSelected ? 'נבחרה על ידי הלקוחה' : 'מחק תמונה'}
+                        >
+                          {isDeleting
+                            ? <div className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full animate-spin" />
+                            : <Trash2 size={9} className={isSelected ? 'text-stone-400' : 'text-white'} />
+                          }
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -408,18 +552,25 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               <p className="text-sm">הלקוחה עדיין לא בחרה תמונות</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
               {approvedPhotos.map((photo, i) => (
-                <div key={photo.id} className="flex items-center gap-4 px-5 py-3 border-b border-stone-50 last:border-0">
-                  <span className="text-stone-300 text-sm w-5 text-left shrink-0">{i + 1}</span>
-                  <div className="w-9 h-9 rounded-md overflow-hidden relative shrink-0 bg-stone-100">
+                <div key={photo.id} className="flex flex-col gap-1">
+                  <div className="aspect-square rounded-lg overflow-hidden relative bg-stone-100 group"
+                    style={{ outline: `2px solid ${color}`, outlineOffset: '-2px' }}>
                     {(photo.thumbnail_url || photo.url) && (
-                      <Image src={photo.thumbnail_url || photo.url!} alt="" fill unoptimized className="object-cover" />
+                      <Image src={photo.thumbnail_url || photo.url} alt="" fill unoptimized className="object-cover" />
                     )}
+                    <div className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ background: color }}>
+                      <Check size={10} className="text-white" />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 text-center text-white text-[9px] font-medium bg-black/50 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity px-0.5 truncate">
+                      {i + 1}
+                    </div>
                   </div>
-                  <span className="text-sm text-stone-700 flex-1 truncate">{photo.name || photo.id}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-md font-medium shrink-0"
-                    style={{ background: color + '18', color }}>אושרה</span>
+                  <p className="text-[10px] text-stone-500 truncate text-center leading-tight px-0.5" title={photoName(photo)}>
+                    {photoName(photo)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -440,10 +591,10 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                       <span className="text-stone-300 text-sm w-5 shrink-0">{i + 1}</span>
                       <div className="w-9 h-9 rounded-md overflow-hidden relative shrink-0 bg-stone-100">
                         {(photo.thumbnail_url || photo.url) && (
-                          <Image src={photo.thumbnail_url || photo.url!} alt="" fill unoptimized className="object-cover" />
+                          <Image src={photo.thumbnail_url || photo.url} alt="" fill unoptimized className="object-cover" />
                         )}
                       </div>
-                      <span className="text-sm text-stone-700 flex-1 truncate">{photo.name || photo.id}</span>
+                      <span className="text-sm text-stone-700 flex-1 truncate">{photoName(photo)}</span>
                       <span className="text-xs px-2 py-0.5 rounded-md font-medium bg-amber-50 text-amber-600 shrink-0">התלבטות</span>
                     </div>
                   ))}
