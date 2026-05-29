@@ -2,10 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 import Link from 'next/link'
-import { SUPER_ADMIN_EMAIL } from '@/lib/constants'
 
 export default function AuthLoginPage() {
   const router = useRouter()
@@ -19,42 +17,25 @@ export default function AuthLoginPage() {
     setLoading(true)
     setError('')
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      setError('חסרים פרטי חיבור ל-Supabase. צריך לעשות Redeploy אחרי הוספת משתני הסביבה.')
-      setLoading(false)
-      return
-    }
-
     try {
-      const supabase = createClient()
-      const signIn = supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
+      const res = await fetch('/api/auth/photographer-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), 15000)
-      )
+      const data = await res.json()
 
-      const { data, error: authError } = await Promise.race([signIn, timeout])
-
-      if (authError || !data.user) {
-        setError('מייל או סיסמה שגויים')
+      if (!res.ok) {
+        setError(data.error || 'ההתחברות נכשלה')
         setLoading(false)
         return
       }
 
-      if (data.user.email === SUPER_ADMIN_EMAIL) {
-        router.push('/admin')
-      } else {
-        router.push('/dashboard')
-      }
+      router.push(data.redirectTo || '/dashboard')
       router.refresh()
     } catch (err) {
       console.error('Login error:', err)
-      setError('החיבור ל-Supabase נכשל. בדקי שהאתר נבנה מחדש ושכתובת Supabase תקינה.')
+      setError('החיבור לשרת נכשל. נסי שוב בעוד רגע.')
       setLoading(false)
     }
   }
