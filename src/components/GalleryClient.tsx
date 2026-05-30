@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, Send } from 'lucide-react'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send } from 'lucide-react'
 import type { Session, Photo, Selection, SelectionStatus } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
@@ -55,6 +55,13 @@ export default function GalleryClient({
 
   const approvedCount = Object.values(selections).filter(s => s === 'approved').length
   const approvedPhotos = allPhotos.filter(p => selections[p.id] === 'approved')
+  const lightboxIndex = lightbox ? visiblePhotos.findIndex(p => p.id === lightbox.id) : -1
+
+  function moveLightbox(direction: -1 | 1) {
+    if (lightboxIndex < 0 || visiblePhotos.length <= 1) return
+    const nextIndex = (lightboxIndex + direction + visiblePhotos.length) % visiblePhotos.length
+    setLightbox(visiblePhotos[nextIndex])
+  }
 
   const handleMark = useCallback(async (photoId: string, status: SelectionStatus | null) => {
     if (status === 'approved') {
@@ -361,6 +368,23 @@ export default function GalleryClient({
               fill unoptimized
               className="object-contain"
             />
+            {visiblePhotos.length > 1 && (
+              <>
+                <button type="button" onClick={() => moveLightbox(1)}
+                  className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                  <ChevronRight size={24} />
+                </button>
+                <button type="button" onClick={() => moveLightbox(-1)}
+                  className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                  <ChevronLeft size={24} />
+                </button>
+              </>
+            )}
+            {lightbox.name && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 max-w-[70vw] truncate rounded-full bg-black/50 px-3 py-1 text-xs text-white/70" dir="ltr">
+                {lightbox.name}
+              </div>
+            )}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3">
               {(['approved', 'maybe', 'rejected'] as SelectionStatus[]).map(s => {
                 const blocked = s === 'approved' && isApproveBlocked && selections[lightbox.id] !== 'approved'

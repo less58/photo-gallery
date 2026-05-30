@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SUPER_ADMIN_EMAIL } from '@/lib/constants'
 
 export async function POST(req: NextRequest) {
@@ -25,9 +26,24 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'מייל או סיסמה שגויים' }, { status: 401 })
     }
 
-    return Response.json({
-      redirectTo: data.user.email === SUPER_ADMIN_EMAIL ? '/admin' : '/dashboard',
-    })
+    if (data.user.email === SUPER_ADMIN_EMAIL) {
+      return Response.json({ redirectTo: '/admin' })
+    }
+
+    const admin = createAdminClient()
+    const { data: photographer } = await admin
+      .from('photographers')
+      .select('id')
+      .eq('email', data.user.email!)
+      .maybeSingle()
+
+    if (!photographer) {
+      return Response.json({
+        redirectTo: `/auth/request-account?email=${encodeURIComponent(data.user.email!)}`,
+      })
+    }
+
+    return Response.json({ redirectTo: '/dashboard' })
   } catch (err) {
     console.error('Photographer login unexpected error:', err)
     return Response.json({ error: 'החיבור ל-Supabase נכשל' }, { status: 500 })

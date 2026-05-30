@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -36,6 +37,27 @@ export default function AuthLoginPage() {
     } catch (err) {
       console.error('Login error:', err)
       setError('החיבור לשרת נכשל. נסי שוב בעוד רגע.')
+      setLoading(false)
+    }
+  }
+
+  async function signInWithGoogle() {
+    setLoading(true)
+    setError('')
+    try {
+      const supabase = createClient()
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (oauthError) {
+        setError('התחברות עם Google נכשלה')
+        setLoading(false)
+      }
+    } catch {
+      setError('התחברות עם Google נכשלה')
       setLoading(false)
     }
   }
@@ -84,6 +106,21 @@ export default function AuthLoginPage() {
               style={{ background: 'var(--brand)' }}
             >
               {loading ? 'מתחברת...' : 'כניסה'}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="h-px bg-rose-100 flex-1" />
+              <span className="text-xs text-muted">או</span>
+              <div className="h-px bg-rose-100 flex-1" />
+            </div>
+
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={loading}
+              className="w-full py-3 rounded-xl border border-rose-100 bg-white text-charcoal font-semibold transition-all active:scale-95 disabled:opacity-60"
+            >
+              כניסה עם Google
             </button>
           </form>
         </div>

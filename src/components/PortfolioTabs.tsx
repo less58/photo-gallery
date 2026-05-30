@@ -154,7 +154,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     const newPhotos: Photo[] = []
 
     async function uploadOne(file: File): Promise<Photo | null> {
-      const name = file.name.replace(/\.[^.]+$/, '')
+      const name = file.name
       const fd = new FormData()
       fd.append('file', file)
       fd.append('folder', `portfolios/${portfolio.id}`)

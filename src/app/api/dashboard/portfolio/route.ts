@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   let emailSent = false
   if (ph.send_client_emails) {
     try {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
       const magicLink = `${siteUrl}/enter/${magicToken}`
       const subject = ((ph.email_subject as string) || 'התמונות שלך מוכנות לבחירה 📷')
         .replace('{portfolio_name}', title)

@@ -10,20 +10,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
-  // Get or create photographer record
-  let { data: photographer } = await supabase
+  const { data: photographer } = await supabase
     .from('photographers')
     .select('id, brand_color, logo_url, name')
     .eq('email', user.email!)
-    .single()
+    .maybeSingle()
 
   if (!photographer) {
-    const { data: newPh } = await supabase
-      .from('photographers')
-      .insert({ email: user.email!, name: user.email!.split('@')[0], brand_color: '#D4736A' })
-      .select('id, brand_color, logo_url, name')
-      .single()
-    photographer = newPh
+    redirect(`/auth/request-account?email=${encodeURIComponent(user.email!)}`)
   }
 
   const brand = photographer?.brand_color || '#D4736A'
