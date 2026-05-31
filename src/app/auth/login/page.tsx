@@ -50,11 +50,10 @@ export default function AuthLoginPage() {
     setError('')
     try {
       const supabase = createClient()
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${siteUrl}/auth/callback`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             prompt: 'select_account',
           },

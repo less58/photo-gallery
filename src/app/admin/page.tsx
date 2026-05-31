@@ -7,7 +7,7 @@ export default async function AdminPage() {
   const { data: photographers } = await supabase
     .from('photographers')
     .select('id, name, email, brand_color, created_at, is_frozen, portfolios(id)')
-    .neq('email', 'r9095362@gmail.com')
+    .neq('email', '9095362@gmail.com')
     .order('created_at', { ascending: false })
 
   const list = (photographers || []).map(p => ({
