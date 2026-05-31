@@ -35,8 +35,15 @@ export async function GET(req: NextRequest) {
 
         if (!photographer) {
           await supabase.auth.signOut()
+          const { data: pendingRequest } = await admin
+            .from('account_requests')
+            .select('id')
+            .eq('email', user.email)
+            .eq('status', 'pending')
+            .maybeSingle()
+          const suffix = pendingRequest ? '&pending=true' : ''
           return NextResponse.redirect(
-            new URL(`/auth/request-account?email=${encodeURIComponent(user.email)}`, requestUrl.origin)
+            new URL(`/auth/request-account?email=${encodeURIComponent(user.email)}${suffix}`, requestUrl.origin)
           )
         }
       }

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
 
   if (adminSettings?.send_client_emails) {
     try {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
+      const siteUrl = req.nextUrl.origin
       const html = `
         <div dir="rtl" style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;line-height:1.7">
           <h2>נוצר עבורך חשבון ב-SELECT IT</h2>

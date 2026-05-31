@@ -26,8 +26,15 @@ export async function POST(req: NextRequest) {
         .maybeSingle()
 
       if (!existingPhotographer) {
+        const { data: pendingRequest } = await admin
+          .from('account_requests')
+          .select('id')
+          .eq('email', normalizedEmail)
+          .eq('status', 'pending')
+          .maybeSingle()
+        const suffix = pendingRequest ? '&pending=true' : ''
         return Response.json({
-          redirectTo: `/auth/request-account?email=${encodeURIComponent(normalizedEmail)}`,
+          redirectTo: `/auth/request-account?email=${encodeURIComponent(normalizedEmail)}${suffix}`,
         })
       }
     }

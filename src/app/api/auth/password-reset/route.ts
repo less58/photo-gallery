@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'המייל לא רשום במערכת' }, { status: 404 })
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
+  const siteUrl = req.nextUrl.origin
   const redirectTo = `${siteUrl}/auth/callback?next=/auth/reset-password`
 
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({

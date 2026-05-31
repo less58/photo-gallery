@@ -59,7 +59,7 @@ const MAX_RETRIES = 3
 const PROGRESS_THROTTLE_MS = 150
 // Resize to this dimension before upload to stay within Cloudinary limits and speed up upload
 const RESIZE_MAX_DIMENSION = 1920
-const RESIZE_QUALITY = 0.85
+const RESIZE_QUALITY = 0.92
 
 const UploadContext = createContext<UploadContextType | null>(null)
 
@@ -263,7 +263,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
 
         const url = cloudResult.secure_url
         // Apply display transformations via URL (not at storage time)
-        const thumbnailUrl = url.replace('/upload/', '/upload/w_400,q_auto:good/')
+        const thumbnailUrl = url.replace('/upload/', '/upload/w_600,q_auto:best/')
 
         let photo: Photo | null = null
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {

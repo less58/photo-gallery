@@ -44,6 +44,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
   const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [showResendConfirm, setShowResendConfirm] = useState(false)
   const creatingSessionRef = useRef(false)
 
   useEffect(() => { setSiteOrigin(window.location.origin) }, [])
@@ -80,7 +82,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     setTimeout(() => setCopied(false), 2000)
   }
 
-  async function sendEmailToClient() {
+  async function doSendEmail() {
+    setShowResendConfirm(false)
     setSendingEmail(true)
     try {
       const res = await fetch('/api/dashboard/portfolio/send-email', {
@@ -91,6 +94,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       const data = await res.json()
       if (res.ok) {
         toast('מייל נשלח ללקוחה בהצלחה ✓')
+        setEmailSent(true)
       } else {
         toast(data.error || 'שגיאה בשליחת המייל', 'error')
       }
@@ -99,6 +103,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     } finally {
       setSendingEmail(false)
     }
+  }
+
+  function sendEmailToClient() {
+    if (emailSent) { setShowResendConfirm(true); return }
+    void doSendEmail()
   }
 
   async function uploadCover(file: File) {
@@ -251,7 +260,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       canvas.height = Math.round(bitmap.height * ratio)
       canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
       bitmap.close()
-      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.85))
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.92))
       if (!blob) return file
       return new File([blob], file.name, { type: 'image/jpeg' })
     } catch { return file }
@@ -296,10 +305,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   }
 
   function photoName(photo: Photo): string {
-    if (photo.name) return photo.name
-    // Fallback: extract original name from Cloudinary URL
-    const match = photo.url?.match(/\/([^/]+?)(?:\.[^.]+)?$/)
-    return match ? match[1] : photo.id
+    return photo.name || ''
   }
 
   function downloadReport() {
@@ -383,6 +389,34 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
           )}
         </div>
       </div>
+
+      {/* Resend email confirmation */}
+      {showResendConfirm && (
+        <div className="rounded-xl px-4 py-3 mb-4 border text-sm"
+          style={{ background: '#fffbeb', borderColor: '#fcd34d' }}>
+          <p className="font-medium text-amber-800 mb-2">
+            כבר נשלח מייל ללקוחה על פתיחת התיק. האם לשלוח שנית?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void doSendEmail()}
+              disabled={sendingEmail}
+              className="px-4 py-1.5 rounded-lg text-white text-xs font-semibold disabled:opacity-50 transition"
+              style={{ background: color }}
+            >
+              {sendingEmail ? 'שולחת...' : 'שלח שנית'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowResendConfirm(false)}
+              className="px-4 py-1.5 rounded-lg border border-stone-200 text-stone-500 text-xs hover:bg-stone-50 transition"
+            >
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Cover image section */}
       <div className="rounded-xl border border-stone-200 px-4 py-3 mb-5 flex items-center gap-4 bg-white">
