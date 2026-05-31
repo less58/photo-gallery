@@ -63,7 +63,6 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       photographerName={String(ph.name || '')}
       logoUrl={(ph.logo_url as string) ?? null}
       showSendButton={ph.receive_selection_emails !== false}
-      allowDownload={ph.allow_client_download === true}
     />
   )
 }

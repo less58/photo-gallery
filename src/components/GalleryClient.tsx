@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, Download } from 'lucide-react'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send } from 'lucide-react'
 import type { Session, Photo, Selection, SelectionStatus } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
@@ -21,7 +21,6 @@ type Props = {
   photographerName: string
   logoUrl: string | null
   showSendButton?: boolean
-  allowDownload?: boolean
 }
 
 const STATUS_COLOR: Record<SelectionStatus, string> = {
@@ -35,7 +34,7 @@ type GalleryTab = 'gallery' | 'selected'
 export default function GalleryClient({
   sessions, allPhotos, initialSelections, quota, color,
   coverUrl, instructions, photographerName, logoUrl, portfolioTitle,
-  showSendButton = true, allowDownload = false,
+  showSendButton = true,
 }: Props) {
   const toast = useToast()
   const [activeSession, setActiveSession] = useState<string | 'all'>('all')
@@ -49,7 +48,6 @@ export default function GalleryClient({
   const [lightbox, setLightbox] = useState<Photo | null>(null)
   const [tab, setTab] = useState<GalleryTab>('gallery')
   const [sendingReport, setSendingReport] = useState(false)
-  const [downloadingZip, setDownloadingZip] = useState(false)
   const galleryRef = useRef<HTMLDivElement>(null)
 
   const visiblePhotos = activeSession === 'all'
@@ -138,23 +136,6 @@ export default function GalleryClient({
     }
   }
 
-  async function downloadZip() {
-    if (approvedCount === 0) { toast('לא נבחרו תמונות', 'error'); return }
-    setDownloadingZip(true)
-    try {
-      const res = await fetch('/api/download', { method: 'POST' })
-      if (!res.ok) { const d = await res.json(); toast(d.error || 'שגיאה בהורדה', 'error'); return }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${portfolioTitle}.zip`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch { toast('שגיאה בהורדה', 'error') }
-    setDownloadingZip(false)
-  }
-
   const isApproveBlocked = approvedCount >= quota
 
   return (
@@ -187,23 +168,11 @@ export default function GalleryClient({
       <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-3 space-y-2">
 
-          {/* Progress + action buttons row */}
-          <div className="flex items-center gap-2">
+          {/* Progress + send button row */}
+          <div className="flex items-center gap-3">
             <div className="flex-1">
               <ProgressBar selected={approvedCount} quota={quota} color={color} />
             </div>
-            {allowDownload && (
-              <button
-                type="button"
-                onClick={downloadZip}
-                disabled={downloadingZip || approvedCount === 0}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40 border border-white/30"
-                style={{ color: '#fff' }}
-              >
-                <Download size={12} />
-                {downloadingZip ? 'מכין...' : 'הורדה'}
-              </button>
-            )}
             {showSendButton && (
               <button
                 type="button"

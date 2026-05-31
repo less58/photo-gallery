@@ -20,7 +20,6 @@ type Photographer = {
   email_subject: string | null; email_body: string | null
   sender_display_name: string | null
   receive_selection_emails: boolean | null
-  allow_client_download: boolean | null
 }
 
 export default function SettingsForm({ photographer: ph }: { photographer: Photographer }) {
@@ -44,7 +43,6 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const [emailSubject, setEmailSubject] = useState(ph.email_subject || 'התמונות שלך מוכנות לבחירה 📷')
   const [emailBody, setEmailBody] = useState(ph.email_body || 'שלום,\n\nהתמונות שלך מוכנות לבחירה!\n\nבברכה,\n{photographer_name}')
   const [receiveSelectionEmails, setReceiveSelectionEmails] = useState(ph.receive_selection_emails !== false)
-  const [allowClientDownload, setAllowClientDownload] = useState(ph.allow_client_download === true)
   const [showKey, setShowKey] = useState(false)
   const [showGmailPass, setShowGmailPass] = useState(false)
   const [newPassword, setNewPassword] = useState('')
@@ -127,7 +125,6 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
         senderEmail: senderEmail || null,
         emailSubject, emailBody,
         receiveSelectionEmails,
-        allowClientDownload,
       }),
     })
     setSaving(false)
@@ -387,17 +384,6 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
           </div>
         </label>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <div className="relative shrink-0" onClick={() => setAllowClientDownload(v => !v)}>
-            <div className="w-10 h-[22px] rounded-full transition-colors"
-              style={{ background: allowClientDownload ? 'var(--brand)' : '#D6D3D1' }} />
-            <div className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform ${allowClientDownload ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
-          </div>
-          <div>
-            <span className="text-sm text-stone-700">אפשרי ללקוחה להוריד את התמונות שבחרה</span>
-            <p className="text-xs text-stone-400 mt-0.5">ירד קובץ ZIP עם כל התמונות הנבחרות (כולל סימן מים)</p>
-          </div>
-        </label>
       </Section>
 
       {/* ── Save ── */}
