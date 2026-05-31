@@ -1,6 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import AdminPanel from '@/components/AdminPanel'
 
+export const dynamic = 'force-dynamic'
+
 export default async function AdminPage() {
   const supabase = createAdminClient()
 
