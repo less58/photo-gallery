@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 import Link from 'next/link'
+import EmailInput from '@/components/EmailInput'
 
 export default function AuthLoginPage() {
   const router = useRouter()
@@ -12,6 +13,9 @@ export default function AuthLoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showReset, setShowReset] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetMessage, setResetMessage] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,10 +50,14 @@ export default function AuthLoginPage() {
     setError('')
     try {
       const supabase = createClient()
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${siteUrl}/auth/callback`,
+          queryParams: {
+            prompt: 'select_account',
+          },
         },
       })
       if (oauthError) {
@@ -58,6 +66,30 @@ export default function AuthLoginPage() {
       }
     } catch {
       setError('התחברות עם Google נכשלה')
+      setLoading(false)
+    }
+  }
+
+  async function sendPasswordReset(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setResetMessage('')
+    try {
+      const res = await fetch('/api/auth/password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'לא ניתן לשלוח איפוס סיסמה')
+        return
+      }
+      setResetMessage('קישור איפוס נשלח למייל')
+    } catch {
+      setError('שגיאה בשליחת איפוס סיסמה')
+    } finally {
       setLoading(false)
     }
   }
@@ -81,11 +113,11 @@ export default function AuthLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-charcoal mb-1">מייל</label>
-              <input
-                type="email" required
-                value={email} onChange={e => setEmail(e.target.value)}
+              <EmailInput
+                required
+                value={email} onChange={setEmail}
                 className="w-full px-4 py-3 rounded-xl border border-rose-100 bg-warm-white focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-muted text-sm"
-                placeholder="your@email.com" dir="ltr"
+                placeholder="your@email.com"
               />
             </div>
             <div>
@@ -122,6 +154,14 @@ export default function AuthLoginPage() {
             >
               כניסה עם Google
             </button>
+
+            <button
+              type="button"
+              onClick={() => { setResetEmail(email); setShowReset(true); setError(''); setResetMessage('') }}
+              className="w-full text-center text-xs text-muted hover:text-brand transition"
+            >
+              שכחת סיסמה? איפוס סיסמה
+            </button>
           </form>
         </div>
 
@@ -131,6 +171,35 @@ export default function AuthLoginPage() {
           </Link>
         </div>
       </div>
+
+      {showReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <form onSubmit={sendPasswordReset} className="w-full max-w-sm bg-white rounded-2xl p-6 shadow-xl space-y-4">
+            <h2 className="font-bold text-charcoal text-center">איפוס סיסמה</h2>
+            <p className="text-sm text-muted text-center">הכניסי מייל ונשלח קישור לקביעת סיסמה חדשה</p>
+            <EmailInput
+              required
+              value={resetEmail}
+              onChange={setResetEmail}
+              className="w-full px-4 py-3 rounded-xl border border-rose-100 bg-warm-white focus:outline-none focus:ring-2 focus:ring-brand"
+              placeholder="your@email.com"
+            />
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+            {resetMessage && <p className="text-green-600 text-sm text-center">{resetMessage}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowReset(false)}
+                className="flex-1 py-2.5 rounded-xl border border-rose-100 text-muted text-sm">
+                סגירה
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50"
+                style={{ background: 'var(--brand)' }}>
+                {loading ? 'שולחת...' : 'שליחה'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import EmailInput from '@/components/EmailInput'
 
 export default function DashboardLoginPage() {
   const router = useRouter()
@@ -42,14 +43,12 @@ export default function DashboardLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">מייל</label>
-              <input
-                type="email"
+              <EmailInput
                 required
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={setEmail}
                 className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                 placeholder="your@email.com"
-                dir="ltr"
               />
             </div>
 

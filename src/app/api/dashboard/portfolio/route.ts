@@ -89,35 +89,7 @@ export async function POST(req: NextRequest) {
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  let emailSent = false
-  if (ph.send_client_emails) {
-    try {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
-      const magicLink = `${siteUrl}/enter/${magicToken}`
-      const subject = ((ph.email_subject as string) || 'התמונות שלך מוכנות לבחירה 📷')
-        .replace('{portfolio_name}', title)
-
-      const emailData = {
-        photographerName: String(ph.name || ''),
-        clientEmail: clientEmail.toLowerCase().trim(),
-        portfolioTitle: title,
-        magicLink,
-        siteUrl,
-        bodyTemplate: (ph.email_body as string) || '',
-        logoUrl: (ph.logo_url as string) || null,
-        brandColor: (ph.brand_color as string) || '#C97B73',
-      }
-
-      const html = buildEmailHtml(emailData)
-      const text = buildEmailText(emailData)
-
-      emailSent = await sendEmail(ph, clientEmail.toLowerCase().trim(), subject, html, text)
-    } catch (e) {
-      console.error('Email error:', e)
-    }
-  }
-
-  return Response.json({ id: portfolio.id, emailSent })
+  return Response.json({ id: portfolio.id, emailSent: false })
 }
 
 export async function DELETE(req: NextRequest) {

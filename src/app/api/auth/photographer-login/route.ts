@@ -15,9 +15,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const normalizedEmail = String(email).trim().toLowerCase()
+    const admin = createAdminClient()
+
+    if (normalizedEmail !== SUPER_ADMIN_EMAIL) {
+      const { data: existingPhotographer } = await admin
+        .from('photographers')
+        .select('id')
+        .eq('email', normalizedEmail)
+        .maybeSingle()
+
+      if (!existingPhotographer) {
+        return Response.json({
+          redirectTo: `/auth/request-account?email=${encodeURIComponent(normalizedEmail)}`,
+        })
+      }
+    }
+
     const supabase = await createClient()
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: String(email).trim().toLowerCase(),
+      email: normalizedEmail,
       password,
     })
 
@@ -30,7 +47,6 @@ export async function POST(req: NextRequest) {
       return Response.json({ redirectTo: '/admin' })
     }
 
-    const admin = createAdminClient()
     const { data: photographer } = await admin
       .from('photographers')
       .select('id')

@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -14,7 +15,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               System Admin
             </span>
           </div>
-          <LogoutButton />
+          <div className="flex items-center gap-3">
+            <Link href="/admin" className="text-sm text-stone-500 hover:text-stone-800 transition">צלמות</Link>
+            <Link href="/admin/settings" className="text-sm text-stone-500 hover:text-stone-800 transition">הגדרות מייל</Link>
+            <LogoutButton />
+          </div>
         </div>
       </nav>
       <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-10">

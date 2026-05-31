@@ -3,19 +3,21 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail } from 'lucide-react'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
 
 type Photographer = {
   id: string; name: string; logo_url: string | null
   brand_color: string; watermark_url: string | null; watermark_public_id: string | null
+  send_client_emails: boolean
 }
 type Props = {
   portfolio: Portfolio
   sessions: (Session & { photos: Photo[] })[]
   selections: { photo_id: string; status: string }[]
   photographer: Photographer
+  isFrozen?: boolean
 }
 type Tab = 'photos' | 'selected'
 
@@ -25,7 +27,7 @@ const STATUS_COLOR: Record<string, string> = {
   maybe: '#F59E0B',
 }
 
-export default function PortfolioTabs({ portfolio, sessions: initialSessions, selections, photographer }: Props) {
+export default function PortfolioTabs({ portfolio, sessions: initialSessions, selections, photographer, isFrozen = false }: Props) {
   const toast = useToast()
   const [tab, setTab] = useState<Tab>('photos')
   const [sessions, setSessions] = useState(initialSessions)
@@ -40,6 +42,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [uploadingCover, setUploadingCover] = useState(false)
   const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null)
   const [loadingData, setLoadingData] = useState(true)
+  const [sendingEmail, setSendingEmail] = useState(false)
   const creatingSessionRef = useRef(false)
 
   useEffect(() => { setSiteOrigin(window.location.origin) }, [])
@@ -74,6 +77,27 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     await navigator.clipboard.writeText(magicLink)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function sendEmailToClient() {
+    setSendingEmail(true)
+    try {
+      const res = await fetch('/api/dashboard/portfolio/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ portfolioId: portfolio.id }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast('מייל נשלח ללקוחה בהצלחה ✓')
+      } else {
+        toast(data.error || 'שגיאה בשליחת המייל', 'error')
+      }
+    } catch {
+      toast('שגיאה בחיבור', 'error')
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   async function uploadCover(file: File) {
@@ -323,15 +347,30 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         <span className="font-mono text-xs text-stone-500 flex-1 min-w-0 truncate" dir="ltr">
           {magicLink || '...'}
         </span>
-        <button
-          type="button"
-          onClick={copyLink}
-          disabled={!magicLink}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all shrink-0"
-          style={{ background: color, color: '#fff' }}
-        >
-          {copied ? <><CheckCheck size={12} /> הועתק</> : <><Copy size={12} /> העתק</>}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={copyLink}
+            disabled={!magicLink}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all"
+            style={{ background: color, color: '#fff' }}
+          >
+            {copied ? <><CheckCheck size={12} /> הועתק</> : <><Copy size={12} /> העתק</>}
+          </button>
+          {photographer.send_client_emails && (
+            <button
+              type="button"
+              onClick={sendEmailToClient}
+              disabled={sendingEmail}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition-all disabled:opacity-50"
+              style={{ borderColor: color, color }}
+              title="שלחי מייל עם קישור ללקוחה"
+            >
+              <Mail size={12} />
+              {sendingEmail ? 'שולחת...' : 'שלחי מייל'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cover image section */}
@@ -413,18 +452,20 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               {loadingData && <span className="inline-block w-3 h-3 border-2 border-stone-300 border-t-stone-500 rounded-full animate-spin" />}
               {sessions.length === 0 ? (loadingData ? 'טוענת...' : 'לא נוצרו סשנים') : `${sessions.length} סשנים`}
             </span>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => triggerUpload()}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-all active:scale-[0.98]"
-                style={{ background: color }}>
-                <Upload size={13} />
-                {sessions.length === 0 ? 'העלאת תמונות' : 'העלה לסשן הראשון'}
-              </button>
-              <button type="button" onClick={() => setAddingSession(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-500 text-xs font-medium hover:border-stone-300 transition-colors">
-                <Plus size={13} /> סשן חדש
-              </button>
-            </div>
+            {!isFrozen && (
+              <div className="flex gap-2">
+                <button type="button" onClick={() => triggerUpload()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-all active:scale-[0.98]"
+                  style={{ background: color }}>
+                  <Upload size={13} />
+                  {sessions.length === 0 ? 'העלאת תמונות' : 'העלה לסשן הראשון'}
+                </button>
+                <button type="button" onClick={() => setAddingSession(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-500 text-xs font-medium hover:border-stone-300 transition-colors">
+                  <Plus size={13} /> סשן חדש
+                </button>
+              </div>
+            )}
           </div>
 
           {addingSession && (
@@ -462,10 +503,12 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                   <span className="font-semibold text-stone-800 text-sm">{session.name}</span>
                   <span className="text-stone-400 text-xs mr-2">{session.photos?.length || 0} תמונות</span>
                 </div>
-                <button type="button" onClick={() => triggerUpload(session.id)}
-                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-stone-200 text-stone-500 hover:border-stone-300 hover:text-stone-700 transition-colors">
-                  <Upload size={12} /> העלאה
-                </button>
+                {!isFrozen && (
+                  <button type="button" onClick={() => triggerUpload(session.id)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-stone-200 text-stone-500 hover:border-stone-300 hover:text-stone-700 transition-colors">
+                    <Upload size={12} /> העלאה
+                  </button>
+                )}
               </div>
 
               {(session.photos?.length || 0) === 0 ? (

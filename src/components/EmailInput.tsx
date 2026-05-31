@@ -15,11 +15,12 @@ type Props = {
   required?: boolean
   className?: string
   id?: string
+  disabled?: boolean
 }
 
 type Suggestion = { email: string; fromHistory: boolean }
 
-export default function EmailInput({ value, onChange, placeholder, required, className, id }: Props) {
+export default function EmailInput({ value, onChange, placeholder, required, className, id, disabled }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -82,16 +83,29 @@ export default function EmailInput({ value, onChange, placeholder, required, cla
     }
   }
 
+  const inlineSuggestion = suggestions.find(s => !s.fromHistory && s.email.startsWith(value))?.email ?? ''
+
   return (
     <div className="relative">
       <input
-        ref={inputRef} id={id} type="email" required={required}
+        ref={inputRef} id={id} type="email" required={required} disabled={disabled}
         value={value} onChange={e => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={() => setTimeout(() => setSuggestions([]), 180)}
         placeholder={placeholder} dir="ltr" autoComplete="off"
         className={className}
       />
+
+      {value.includes('@') && inlineSuggestion && inlineSuggestion !== value && (
+        <div
+          className={(className || '') + ' absolute inset-0 z-10 pointer-events-none text-sm flex items-center overflow-hidden bg-transparent border-transparent'}
+          dir="ltr"
+          aria-hidden="true"
+        >
+          <span className="text-transparent whitespace-pre">{value}</span>
+          <span className="text-stone-300 whitespace-pre">{inlineSuggestion.slice(value.length)}</span>
+        </div>
+      )}
 
       {suggestions.length > 0 && (
         <ul className="absolute z-50 top-full mt-1 w-full bg-white border border-stone-200 rounded-lg shadow-xl overflow-hidden text-sm"

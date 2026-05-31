@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
-import { Settings, Home, Plus } from 'lucide-react'
+import { Settings, Home, Plus, Snowflake } from 'lucide-react'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: photographer } = await supabase
     .from('photographers')
-    .select('id, brand_color, logo_url, name')
+    .select('id, brand_color, logo_url, name, is_frozen')
     .eq('email', user.email!)
     .maybeSingle()
 
@@ -20,8 +20,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect(`/auth/request-account?email=${encodeURIComponent(user.email!)}`)
   }
 
+  const isFrozen = photographer?.is_frozen ?? false
   const brand = photographer?.brand_color || '#D4736A'
-  // Derive a light tint (20% opacity hex approx)
   const brandVars = {
     '--brand': brand,
     '--brand-dark': brand,
@@ -52,11 +52,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
               title="תיקים">
               <Home size={17} />
             </Link>
-            <Link href="/dashboard/portfolio/new"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-white text-sm font-semibold transition-all active:scale-[0.98]"
-              style={{ background: brand }}>
-              <Plus size={15} /> תיק חדש
-            </Link>
+            {!isFrozen && (
+              <Link href="/dashboard/portfolio/new"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-white text-sm font-semibold transition-all active:scale-[0.98]"
+                style={{ background: brand }}>
+                <Plus size={15} /> תיק חדש
+              </Link>
+            )}
             <Link href="/dashboard/settings"
               className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
               title="הגדרות">
@@ -66,6 +68,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         </div>
       </nav>
+
+      {isFrozen && (
+        <div className="bg-blue-50 border-b border-blue-200 px-6 py-2.5 text-center">
+          <p className="text-blue-700 text-sm flex items-center justify-center gap-2">
+            <Snowflake size={14} />
+            החשבון שלך מוקפא. ניתן לצפות בתיקים הקיימים ולהוריד דוחות, אך לא ניתן ליצור תיקים חדשים או להעלות תמונות.
+            <Snowflake size={14} />
+          </p>
+        </div>
+      )}
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
         {children}

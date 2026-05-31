@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import RequestAccountForm from '@/components/RequestAccountForm'
 
 export default async function RequestAccountPage({
   searchParams,
@@ -17,12 +18,12 @@ export default async function RequestAccountPage({
           <span className="block mt-1 font-mono text-charcoal" dir="ltr">{requestedEmail}</span>
         </p>
         <p className="text-muted text-sm leading-7 mt-4">
-          פני למנהל המערכת ובקשי לפתוח חשבון למייל הזה.
+          מלאי בקשה קצרה והיא תישלח למנהל המערכת.
         </p>
+        <RequestAccountForm initialEmail={requestedEmail} />
         <Link
           href="/auth/login"
-          className="inline-flex mt-6 px-5 py-2.5 rounded-xl text-white text-sm font-semibold"
-          style={{ background: 'var(--brand)' }}
+          className="inline-flex mt-5 text-muted text-sm hover:text-brand transition"
         >
           חזרה להתחברות
         </Link>

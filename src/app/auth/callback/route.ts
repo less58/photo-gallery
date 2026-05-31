@@ -6,7 +6,13 @@ import { SUPER_ADMIN_EMAIL } from '@/lib/constants'
 export async function GET(req: NextRequest) {
   const requestUrl = new URL(req.url)
   const code = requestUrl.searchParams.get('code')
+  const oauthError = requestUrl.searchParams.get('error')
   const next = requestUrl.searchParams.get('next') || '/dashboard'
+
+  // Google denied access (app not verified or user not in test list)
+  if (oauthError === 'access_denied') {
+    return NextResponse.redirect(new URL('/auth/request-account', requestUrl.origin))
+  }
 
   if (code) {
     const supabase = await createClient()
@@ -28,6 +34,7 @@ export async function GET(req: NextRequest) {
           .maybeSingle()
 
         if (!photographer) {
+          await supabase.auth.signOut()
           return NextResponse.redirect(
             new URL(`/auth/request-account?email=${encodeURIComponent(user.email)}`, requestUrl.origin)
           )

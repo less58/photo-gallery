@@ -45,6 +45,7 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
       portfolio={portfolio}
       sessions={sessions || []}
       selections={selections || []}
+      isFrozen={(photographer.is_frozen as boolean) ?? false}
       photographer={{
         id: String(photographer.id ?? ''),
         name: String(photographer.name ?? ''),
@@ -52,6 +53,7 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
         brand_color: String(photographer.brand_color ?? '#D4736A'),
         watermark_url: (photographer.watermark_url as string) ?? null,
         watermark_public_id: (photographer.watermark_public_id as string) ?? null,
+        send_client_emails: (photographer.send_client_emails as boolean) ?? false,
       }}
     />
   )

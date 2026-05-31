@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send } from 'lucide-react'
 import type { Session, Photo, Selection, SelectionStatus } from '@/lib/types'
@@ -41,7 +41,6 @@ export default function GalleryClient({
     initialSelections.forEach(s => { m[s.photo_id] = s.status })
     return m
   })
-  const [compareMode, setCompareMode] = useState(false)
   const [compareQueue, setCompareQueue] = useState<string[]>([])
   const [comparePhotos, setComparePhotos] = useState<[Photo, Photo] | null>(null)
   const [lightbox, setLightbox] = useState<Photo | null>(null)
@@ -55,13 +54,26 @@ export default function GalleryClient({
 
   const approvedCount = Object.values(selections).filter(s => s === 'approved').length
   const approvedPhotos = allPhotos.filter(p => selections[p.id] === 'approved')
-  const lightboxIndex = lightbox ? visiblePhotos.findIndex(p => p.id === lightbox.id) : -1
 
-  function moveLightbox(direction: -1 | 1) {
-    if (lightboxIndex < 0 || visiblePhotos.length <= 1) return
-    const nextIndex = (lightboxIndex + direction + visiblePhotos.length) % visiblePhotos.length
+  const moveLightbox = useCallback((direction: -1 | 1) => {
+    if (!lightbox || visiblePhotos.length <= 1) return
+    const idx = visiblePhotos.findIndex(p => p.id === lightbox.id)
+    if (idx < 0) return
+    const nextIndex = (idx + direction + visiblePhotos.length) % visiblePhotos.length
     setLightbox(visiblePhotos[nextIndex])
-  }
+  }, [lightbox, visiblePhotos])
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!lightbox) return
+      if (e.key === 'ArrowRight') moveLightbox(1)
+      if (e.key === 'ArrowLeft') moveLightbox(-1)
+      if (e.key === 'Escape') setLightbox(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightbox, moveLightbox])
 
   const handleMark = useCallback(async (photoId: string, status: SelectionStatus | null) => {
     if (status === 'approved') {
@@ -86,7 +98,8 @@ export default function GalleryClient({
     }
   }, [selections, quota, toast])
 
-  const handleToggleCompare = useCallback((photoId: string) => {
+  const handleToggleCompare = useCallback((photoId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
     setCompareQueue(prev => {
       const next = prev.includes(photoId) ? prev.filter(id => id !== photoId) : [...prev, photoId].slice(-2)
       if (next.length === 2) {
@@ -170,14 +183,8 @@ export default function GalleryClient({
             </button>
           </div>
 
-          {/* Instructions as plain text */}
-          {instructions && (
-            <p className="text-white/50 text-xs leading-relaxed">{instructions}</p>
-          )}
-
           {/* Tab row */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {/* Gallery / Selected tabs */}
             <button
               onClick={() => setTab('gallery')}
               className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition"
@@ -214,17 +221,27 @@ export default function GalleryClient({
               </>
             )}
 
-            <button onClick={() => { setCompareMode(m => !m); setCompareQueue([]) }}
-              className="shrink-0 mr-auto px-3 py-1 rounded-md text-xs font-medium border transition"
-              style={compareMode
-                ? { background: color, color: '#fff', borderColor: color }
-                : { borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.6)' }}>
-              <GitCompare size={12} className="inline mr-1" />
-              השוואה
-            </button>
+            {/* Compare hint */}
+            {compareQueue.length > 0 && (
+              <span className="shrink-0 mr-auto px-3 py-1 rounded-md text-xs font-medium border"
+                style={{ borderColor: color, color }}>
+                <GitCompare size={12} className="inline mr-1" />
+                {compareQueue.length === 1 ? 'בחרי עוד תמונה להשוואה' : 'פותח השוואה...'}
+              </span>
+            )}
           </div>
         </div>
       </div>
+
+      {/* ── Instructions banner (below header, above gallery) ── */}
+      {instructions && tab === 'gallery' && (
+        <div className="max-w-7xl mx-auto px-4 pt-5">
+          <p className="text-white/60 text-sm leading-relaxed italic border-r-2 pr-3"
+            style={{ borderColor: color }}>
+            {instructions}
+          </p>
+        </div>
+      )}
 
       {/* ── Selected tab ── */}
       {tab === 'selected' && (
@@ -293,7 +310,7 @@ export default function GalleryClient({
                   >
                     <div
                       className="relative rounded-lg overflow-hidden bg-stone-900"
-                      onClick={() => !compareMode && setLightbox(photo)}
+                      onClick={() => setLightbox(photo)}
                     >
                       <Image
                         src={photo.thumbnail_url || photo.url}
@@ -317,8 +334,9 @@ export default function GalleryClient({
                         <div className="absolute inset-0 rounded-lg" style={{ outline: `3px solid ${color}`, outlineOffset: '-3px' }} />
                       )}
 
-                      {/* Action buttons overlay */}
-                      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-3 pt-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      {/* Action buttons - always visible on mobile, hover on desktop */}
+                      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-3 pt-6
+                        opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                         style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
                         <button type="button"
                           disabled={!canApprove}
@@ -337,13 +355,15 @@ export default function GalleryClient({
                           className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow">
                           <X size={16} />
                         </button>
-                        {compareMode && (
-                          <button type="button"
-                            onClick={e => { e.stopPropagation(); handleToggleCompare(photo.id) }}
-                            className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-blue-500 hover:bg-blue-500 hover:text-white transition-all active:scale-90 shadow">
-                            <GitCompare size={14} />
-                          </button>
-                        )}
+                        <button type="button"
+                          onClick={e => handleToggleCompare(photo.id, e)}
+                          className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 shadow"
+                          style={inCompare
+                            ? { background: color, color: '#fff' }
+                            : { background: 'rgba(255,255,255,0.9)', color: '#3b82f6' }}
+                          title="השוואה">
+                          <GitCompare size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -409,7 +429,13 @@ export default function GalleryClient({
 
       {/* Compare modal */}
       {comparePhotos && (
-        <CompareModal photos={comparePhotos} onClose={() => setComparePhotos(null)} />
+        <CompareModal
+          photos={comparePhotos}
+          selections={selections}
+          isApproveBlocked={isApproveBlocked}
+          onMark={handleMark}
+          onClose={() => setComparePhotos(null)}
+        />
       )}
     </div>
   )
