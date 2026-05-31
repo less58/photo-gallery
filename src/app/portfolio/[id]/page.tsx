@@ -58,12 +58,11 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
         )}
 
         <div>
-          <h1 className="text-3xl font-bold text-white mb-3">{portfolio.title}</h1>
+          <h1 className="text-3xl font-bold text-white mb-4">{portfolio.title}</h1>
           {portfolio.instructions && (
-            <div className="rounded-xl p-4 text-sm leading-relaxed text-white/60"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <p className="text-white/60 text-sm leading-relaxed whitespace-pre-line">
               {portfolio.instructions}
-            </div>
+            </p>
           )}
         </div>
 

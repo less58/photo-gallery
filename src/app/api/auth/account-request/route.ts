@@ -61,22 +61,18 @@ export async function POST(req: NextRequest) {
   `
   const text = `בקשה לפתיחת חשבון ב-SELECT IT\n\nשם: ${name}\nמייל: ${normalizedEmail}\nפרטים:\n${details || 'לא נמסרו פרטים נוספים'}`
 
+  // Send notification email to admin — failure doesn't block the request
   try {
-    const sent = await sendConfiguredEmail(
+    await sendConfiguredEmail(
       sender,
       SUPER_ADMIN_EMAIL,
       `בקשה לפתיחת חשבון - ${name}`,
       html,
       text
     )
-
-    if (!sent) {
-      return Response.json({ error: 'לא הוגדר מייל שליחה למנהל העל' }, { status: 500 })
-    }
-
-    return Response.json({ ok: true })
   } catch (err) {
-    console.error('Account request email failed:', err)
-    return Response.json({ error: 'שליחת הבקשה נכשלה' }, { status: 500 })
+    console.error('Account request notification email failed:', err)
   }
+
+  return Response.json({ ok: true })
 }
