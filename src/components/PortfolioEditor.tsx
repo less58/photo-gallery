@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import type { Portfolio, Session, Photo } from '@/lib/types'
+import { useUpload, UPLOAD_ALLOWED_TYPES, UPLOAD_MAX_SIZE } from '@/context/UploadContext'
+import { useToast } from '@/components/Toast'
 
 type Props = {
   portfolio: Portfolio
@@ -15,13 +17,21 @@ type Props = {
 export default function PortfolioEditor({ portfolio, sessions: initialSessions, selections, photographerName, color }: Props) {
   const [sessions, setSessions] = useState(initialSessions)
   const [newSessionName, setNewSessionName] = useState('')
-  const [uploadingTo, setUploadingTo] = useState<string | null>(null)
   const [addingSession, setAddingSession] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeUploadSession, setActiveUploadSession] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+  const { jobs, startUpload } = useUpload()
+  const toast = useToast()
+
+  useEffect(() => () => { mountedRef.current = false }, [])
 
   const approvedCount = selections.filter(s => s.status === 'approved').length
   const totalPhotos = sessions.reduce((acc, s) => acc + (s.photos?.length || 0), 0)
+
+  function isSessionUploading(sessionId: string) {
+    return jobs.some(j => j.sessionId === sessionId && j.status === 'uploading')
+  }
 
   async function addSession() {
     if (!newSessionName.trim()) return
@@ -38,31 +48,35 @@ export default function PortfolioEditor({ portfolio, sessions: initialSessions, 
     }
   }
 
-  async function uploadPhotos(sessionId: string, files: FileList) {
-    setUploadingTo(sessionId)
-    const newPhotos: Photo[] = []
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || !activeUploadSession) return
 
-    for (const file of Array.from(files)) {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('folder', `portfolios/${portfolio.id}`)
+    const allFiles = Array.from(e.target.files)
+    const validFiles = allFiles.filter(f => UPLOAD_ALLOWED_TYPES.has(f.type) && f.size <= UPLOAD_MAX_SIZE)
+    const rejected = allFiles.length - validFiles.length
 
-      const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
-      const { url, thumbnailUrl } = await uploadRes.json()
-
-      const addRes = await fetch('/api/dashboard/photo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, url, thumbnailUrl }),
-      })
-      const photo = await addRes.json()
-      newPhotos.push(photo)
+    if (rejected > 0) {
+      toast(`${rejected} קבצים נדחו — סוג לא נתמך או גדולים מ-30MB`, 'error')
+    }
+    if (validFiles.length === 0) {
+      e.target.value = ''
+      return
     }
 
-    setSessions(prev =>
-      prev.map(s => s.id === sessionId ? { ...s, photos: [...(s.photos || []), ...newPhotos] } : s)
-    )
-    setUploadingTo(null)
+    const sessionId = activeUploadSession
+    const sessionName = sessions.find(s => s.id === sessionId)?.name ?? 'סשן'
+
+    startUpload(sessionId, sessionName, portfolio.id, validFiles, (photo) => {
+      if (!mountedRef.current) return
+      setSessions(prev =>
+        prev.map(s => s.id === sessionId
+          ? { ...s, photos: [...(s.photos || []), photo] }
+          : s
+        )
+      )
+    })
+
+    e.target.value = ''
   }
 
   return (
@@ -129,10 +143,11 @@ export default function PortfolioEditor({ portfolio, sessions: initialSessions, 
                 <span className="text-neutral-400 font-normal text-sm mr-2">({session.photos?.length || 0} תמונות)</span>
               </h3>
               <button
+                disabled={isSessionUploading(session.id)}
                 onClick={() => { setActiveUploadSession(session.id); fileInputRef.current?.click() }}
-                className="px-3 py-1.5 rounded-lg text-sm font-medium border border-neutral-200 hover:border-violet-400 hover:text-violet-600 transition"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium border border-neutral-200 hover:border-violet-400 hover:text-violet-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {uploadingTo === session.id ? 'מעלה...' : '+ הוספת תמונות'}
+                {isSessionUploading(session.id) ? 'מעלה...' : '+ הוספת תמונות'}
               </button>
             </div>
 
@@ -155,14 +170,9 @@ export default function PortfolioEditor({ portfolio, sessions: initialSessions, 
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,image/tiff"
         className="hidden"
-        onChange={e => {
-          if (e.target.files && activeUploadSession) {
-            uploadPhotos(activeUploadSession, e.target.files)
-            e.target.value = ''
-          }
-        }}
+        onChange={handleFileChange}
       />
     </div>
   )
