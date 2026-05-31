@@ -334,6 +334,15 @@ export default function GalleryClient({
                         <div className="absolute inset-0 rounded-lg" style={{ outline: `3px solid ${color}`, outlineOffset: '-3px' }} />
                       )}
 
+                      {/* Photo name — hover on desktop, always visible on mobile */}
+                      {photo.name && (
+                        <div className="absolute inset-x-0 top-0 px-2 pt-1.5 pb-4 pointer-events-none
+                          opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                          style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.65), transparent)' }}>
+                          <p className="text-white/90 text-[10px] truncate" dir="ltr">{photo.name}</p>
+                        </div>
+                      )}
+
                       {/* Action buttons - always visible on mobile, hover on desktop */}
                       <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-3 pt-6
                         opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
