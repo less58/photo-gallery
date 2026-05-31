@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
+    const siteUrl = req.nextUrl.origin
     const magicLink = `${siteUrl}/enter/${portfolio.magic_token}`
     const subject = ((ph.email_subject as string) || 'התמונות שלך מוכנות לבחירה 📷')
       .replace('{portfolio_name}', portfolio.title)

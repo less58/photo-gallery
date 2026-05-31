@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail } from 'lucide-react'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
+import { useUpload } from '@/context/UploadContext'
 
 type Photographer = {
   id: string; name: string; logo_url: string | null
@@ -29,13 +30,13 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function PortfolioTabs({ portfolio, sessions: initialSessions, selections, photographer, isFrozen = false }: Props) {
   const toast = useToast()
+  const { trackUpload, progressUpload, failUpload, doneUpload } = useUpload()
   const [tab, setTab] = useState<Tab>('photos')
   const [sessions, setSessions] = useState(initialSessions)
   const [newSessionName, setNewSessionName] = useState('')
   const [addingSession, setAddingSession] = useState(false)
   const [savingSession, setSavingSession] = useState(false)
   const [activeUploadSession, setActiveUploadSession] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [siteOrigin, setSiteOrigin] = useState('')
   const [copied, setCopied] = useState(false)
   const [coverUrl, setCoverUrl] = useState<string | null>(portfolio.cover_url)
@@ -169,26 +170,32 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   async function uploadPhotos(sessionId: string, files: FileList) {
     const fileArr = Array.from(files)
     const total = fileArr.length
-    let completed = 0
-    let dbErrors = 0
-    let cloudErrors = 0
-    setUploadProgress({ current: 0, total })
-
-    const CONCURRENCY = 5  // 5 parallel = smooth progress + good speed
+    let done = 0
+    let failed = 0
     const newPhotos: Photo[] = []
+    const sessionName = sessions.find(s => s.id === sessionId)?.name ?? 'סשן'
+    const jobId = trackUpload(sessionId, sessionName, total)
 
     async function uploadOne(file: File): Promise<Photo | null> {
       const name = file.name
+      const resized = await resizeForUpload(file)
+
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', resized)
       fd.append('folder', `portfolios/${portfolio.id}`)
-      fd.append('name', name)
       if (photographer.watermark_public_id) fd.append('watermarkPublicId', photographer.watermark_public_id)
 
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (!uploadRes.ok) { cloudErrors++; return null }
-      const { url, thumbnailUrl } = await uploadRes.json()
-      if (!url) { cloudErrors++; return null }
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json().catch(() => ({})) as Record<string, unknown>
+        failUpload(jobId, name, String(errData.error || `שגיאת העלאה (${uploadRes.status})`))
+        return null
+      }
+      const { url, thumbnailUrl } = await uploadRes.json() as { url: string; thumbnailUrl: string }
+      if (!url) {
+        failUpload(jobId, name, 'לא התקבל URL מ-Cloudinary')
+        return null
+      }
 
       const addRes = await fetch('/api/dashboard/photo', {
         method: 'POST',
@@ -196,14 +203,13 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         body: JSON.stringify({ sessionId, url, thumbnailUrl, name }),
       })
       if (!addRes.ok) {
-        console.error('DB insert failed:', addRes.status, await addRes.text().catch(() => ''))
-        dbErrors++
+        failUpload(jobId, name, 'שגיאת שמירה בבסיס הנתונים')
         return null
       }
       return await addRes.json() as Photo
     }
 
-    // Semaphore-based parallel upload — progress updates per individual photo
+    const CONCURRENCY = 5
     await new Promise<void>((resolve) => {
       let active = 0
       let index = 0
@@ -213,15 +219,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
           const file = fileArr[index++]
           active++
           uploadOne(file).then(photo => {
-            if (photo?.id) newPhotos.push(photo)
-            completed++
-            setUploadProgress({ current: completed, total })
+            if (photo?.id) { newPhotos.push(photo); done++ } else { failed++ }
+            progressUpload(jobId, done, failed)
             active--
-            if (index < fileArr.length) {
-              startNext()
-            } else if (active === 0) {
-              resolve()
-            }
+            if (index < fileArr.length) startNext()
+            else if (active === 0) resolve()
           })
         }
         if (active === 0 && index >= fileArr.length) resolve()
@@ -233,17 +235,26 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     setSessions(prev => prev.map(s =>
       s.id === sessionId ? { ...s, photos: [...(s.photos || []), ...newPhotos] } : s
     ))
-    setUploadProgress(null)
+    doneUpload(jobId)
+  }
 
-    if (newPhotos.length === total) {
-      toast(`${newPhotos.length} תמונות הועלו בהצלחה`)
-    } else if (newPhotos.length > 0) {
-      toast(`${newPhotos.length} מתוך ${total} הועלו (${total - newPhotos.length} נכשלו)`, 'info')
-    } else if (dbErrors > 0) {
-      toast('שגיאה בשמירה למסד — נסי להתנתק ולהתחבר מחדש', 'error')
-    } else {
-      toast('העלאה נכשלה — בדקי חיבור ומפתחות Cloudinary', 'error')
-    }
+  async function resizeForUpload(file: File): Promise<File> {
+    const resizable = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/pjpeg'])
+    if (!resizable.has(file.type)) return file
+    const MAX_DIM = 1200
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions)
+      if (bitmap.width <= MAX_DIM && bitmap.height <= MAX_DIM) { bitmap.close(); return file }
+      const ratio = Math.min(MAX_DIM / bitmap.width, MAX_DIM / bitmap.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(bitmap.width * ratio)
+      canvas.height = Math.round(bitmap.height * ratio)
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      bitmap.close()
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.85))
+      if (!blob) return file
+      return new File([blob], file.name, { type: 'image/jpeg' })
+    } catch { return file }
   }
 
   async function triggerUpload(sessionId?: string) {
@@ -413,19 +424,6 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         )}
       </div>
 
-      {/* Upload progress bar */}
-      {uploadProgress && (
-        <div className="mb-5 bg-white border border-stone-200 rounded-xl p-4">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-stone-600 font-medium">מעלה תמונות...</span>
-            <span className="text-stone-400">{uploadProgress.current} / {uploadProgress.total}</span>
-          </div>
-          <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-300"
-              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%`, background: color }} />
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-5 w-fit">

@@ -32,6 +32,7 @@ type CloudinaryResult =
 
 type UploadContextType = {
   jobs: UploadJob[]
+  // Full managed direct-upload (PortfolioEditor / future use)
   startUpload: (
     sessionId: string,
     sessionName: string,
@@ -39,6 +40,11 @@ type UploadContextType = {
     files: File[],
     onPhotoSaved: (photo: Photo) => void
   ) => void
+  // Lower-level manual tracking (PortfolioTabs uses its own /api/upload logic)
+  trackUpload: (sessionId: string, sessionName: string, total: number) => string
+  progressUpload: (jobId: string, done: number, failed: number) => void
+  failUpload: (jobId: string, name: string, reason: string) => void
+  doneUpload: (jobId: string) => void
   dismissJob: (jobId: string) => void
 }
 
@@ -304,8 +310,41 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
+  const trackUpload = useCallback((sessionId: string, sessionName: string, total: number): string => {
+    const jobId = `job-${++counter.current}`
+    setJobs(prev => [...prev, {
+      id: jobId, sessionId, sessionName,
+      total, done: 0, failed: 0, failedFiles: [],
+      startedAt: Date.now(), batchProgress: 0, status: 'uploading',
+    }])
+    return jobId
+  }, [])
+
+  const progressUpload = useCallback((jobId: string, done: number, failed: number) => {
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, done, failed } : j))
+  }, [])
+
+  const failUpload = useCallback((jobId: string, name: string, reason: string) => {
+    setJobs(prev => prev.map(j => j.id === jobId
+      ? { ...j, failedFiles: [...j.failedFiles, { name, reason }] }
+      : j
+    ))
+  }, [])
+
+  const doneUpload = useCallback((jobId: string) => {
+    setJobs(prev => {
+      const job = prev.find(j => j.id === jobId)
+      const hasFailed = (job?.failed ?? 0) > 0
+      const updated = prev.map(j => j.id === jobId ? { ...j, status: 'done' as const } : j)
+      if (!hasFailed) {
+        setTimeout(() => setJobs(p => p.filter(j => j.id !== jobId)), 6000)
+      }
+      return updated
+    })
+  }, [])
+
   return (
-    <UploadContext.Provider value={{ jobs, startUpload, dismissJob }}>
+    <UploadContext.Provider value={{ jobs, startUpload, trackUpload, progressUpload, failUpload, doneUpload, dismissJob }}>
       {children}
     </UploadContext.Provider>
   )
