@@ -9,8 +9,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-const PHOTO_TRANSFORMATION = 'c_limit,w_1200,q_auto:good'
-
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -43,12 +41,7 @@ export async function POST(req: NextRequest) {
   if (!portfolio) return Response.json({ error: 'תיק לא נמצא' }, { status: 404 })
 
   const timestamp = Math.round(Date.now() / 1000)
-  const paramsToSign: Record<string, string | number> = {
-    folder,
-    timestamp,
-    transformation: PHOTO_TRANSFORMATION,
-  }
-
+  const paramsToSign: Record<string, string | number> = { folder, timestamp }
   const signature = cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET!)
 
   return Response.json({
@@ -57,6 +50,5 @@ export async function POST(req: NextRequest) {
     apiKey: process.env.CLOUDINARY_API_KEY!,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
     folder,
-    transformation: PHOTO_TRANSFORMATION,
   })
 }

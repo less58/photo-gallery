@@ -170,7 +170,7 @@ export default function PortfolioEditor({ portfolio, sessions: initialSessions, 
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,image/tiff"
+        accept="image/*"
         className="hidden"
         onChange={handleFileChange}
       />
