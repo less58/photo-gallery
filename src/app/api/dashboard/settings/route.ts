@@ -10,6 +10,7 @@ const OPTIONAL_COLUMNS = [
   'gmail_address', 'gmail_app_password',
   'resend_api_key', 'sender_email', 'sender_display_name',
   'default_instructions', 'send_client_emails',
+  'receive_selection_emails', 'allow_client_download',
 ]
 
 export async function PATCH(req: NextRequest) {
@@ -37,7 +38,9 @@ export async function PATCH(req: NextRequest) {
   if (body.emailProvider !== undefined)      update.email_provider = body.emailProvider
   if (body.gmailAddress !== undefined)       update.gmail_address = body.gmailAddress
   if (body.gmailAppPassword !== undefined)   update.gmail_app_password = body.gmailAppPassword
-  if (body.senderDisplayName !== undefined)  update.sender_display_name = body.senderDisplayName
+  if (body.senderDisplayName !== undefined)       update.sender_display_name = body.senderDisplayName
+  if (body.receiveSelectionEmails !== undefined)  update.receive_selection_emails = body.receiveSelectionEmails
+  if (body.allowClientDownload !== undefined)     update.allow_client_download = body.allowClientDownload
 
   // Try the full update; if a column is missing, remove it and retry
   let current = { ...update }

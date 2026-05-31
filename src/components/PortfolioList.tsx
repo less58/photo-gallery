@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Trash2, FolderOpen, ImageIcon, Plus } from 'lucide-react'
+import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle } from 'lucide-react'
 import { useToast } from './Toast'
 
 type Portfolio = {
@@ -13,7 +13,9 @@ type Portfolio = {
   quota: number
   sessionCount: number
   photoCount: number
+  selectionCount: number
   cover_url: string | null
+  is_done: boolean
 }
 
 export default function PortfolioList({
@@ -26,8 +28,13 @@ export default function PortfolioList({
   const toast = useToast()
   const [portfolios, setPortfolios] = useState(initial)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [togglingDone, setTogglingDone] = useState<string | null>(null)
 
-  async function deletePortfolio(id: string, title: string) {
+  async function deletePortfolio(id: string, title: string, selectionCount: number) {
+    if (selectionCount > 0) {
+      toast('לא ניתן למחוק תיק שבו הלקוחה כבר בחרה תמונות', 'error')
+      return
+    }
     if (!confirm(`למחוק את התיק "${title}"? לא ניתן לשחזר.`)) return
     setDeleting(id)
     try {
@@ -36,14 +43,33 @@ export default function PortfolioList({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
+      const data = await res.json()
       if (res.ok) {
         setPortfolios(prev => prev.filter(p => p.id !== id))
         toast('התיק נמחק')
       } else {
-        toast('שגיאה במחיקה', 'error')
+        toast(data.error || 'שגיאה במחיקה', 'error')
       }
     } catch { toast('שגיאה', 'error') }
     setDeleting(null)
+  }
+
+  async function toggleDone(id: string, current: boolean) {
+    setTogglingDone(id)
+    try {
+      const res = await fetch(`/api/dashboard/portfolio/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_done: !current }),
+      })
+      if (res.ok) {
+        setPortfolios(prev => prev.map(p => p.id === id ? { ...p, is_done: !current } : p))
+        toast(!current ? 'התיק סומן כ"טופל"' : 'הסימון הוסר')
+      } else {
+        toast('שגיאה בעדכון', 'error')
+      }
+    } catch { toast('שגיאה', 'error') }
+    setTogglingDone(null)
   }
 
   return (
@@ -73,7 +99,7 @@ export default function PortfolioList({
           {portfolios.map((portfolio, i) => (
             <div
               key={portfolio.id}
-              className="group bg-white rounded-xl border border-stone-200 hover:shadow-md transition-all duration-200 anim-fadeUp overflow-hidden"
+              className={`group bg-white rounded-xl border hover:shadow-md transition-all duration-200 anim-fadeUp overflow-hidden ${portfolio.is_done ? 'border-green-200 opacity-75' : 'border-stone-200'}`}
               style={{ animationDelay: `${i * 50}ms` }}
             >
               <Link href={`/dashboard/portfolio/${portfolio.id}`} className="block">
@@ -99,9 +125,14 @@ export default function PortfolioList({
                   {/* Color bar */}
                   <div className="h-1 w-8 rounded-full mb-3" style={{ background: color }} />
 
-                  <h2 className="font-semibold text-stone-800 group-hover:text-stone-600 transition truncate mb-0.5">
-                    {portfolio.title}
-                  </h2>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h2 className="font-semibold text-stone-800 group-hover:text-stone-600 transition truncate">
+                      {portfolio.title}
+                    </h2>
+                    {portfolio.is_done && (
+                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">טופל</span>
+                    )}
+                  </div>
                   <p className="text-stone-400 text-xs truncate mb-3" dir="ltr">{portfolio.client_email}</p>
 
                   {/* Stats */}
@@ -119,16 +150,30 @@ export default function PortfolioList({
                 </div>
               </Link>
 
-              {/* Delete button */}
-              <div className="border-t border-stone-100 px-5 py-2 flex justify-end">
+              {/* Footer actions */}
+              <div className="border-t border-stone-100 px-5 py-2 flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => deletePortfolio(portfolio.id, portfolio.title)}
-                  disabled={deleting === portfolio.id}
-                  className="flex items-center gap-1.5 text-xs text-stone-300 hover:text-red-400 transition-colors disabled:opacity-30 py-1"
+                  onClick={() => toggleDone(portfolio.id, portfolio.is_done)}
+                  disabled={togglingDone === portfolio.id}
+                  title={portfolio.is_done ? 'הסר סימון "טופל"' : 'סמן כ"טופל"'}
+                  className="flex items-center gap-1.5 text-xs transition-colors disabled:opacity-30 py-1"
+                  style={{ color: portfolio.is_done ? '#16a34a' : '#a8a29e' }}
+                >
+                  {portfolio.is_done
+                    ? <CheckCircle2 size={13} />
+                    : <Circle size={13} />}
+                  {togglingDone === portfolio.id ? '...' : (portfolio.is_done ? 'טופל' : 'סמן כטופל')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deletePortfolio(portfolio.id, portfolio.title, portfolio.selectionCount)}
+                  disabled={deleting === portfolio.id || portfolio.selectionCount > 0}
+                  title={portfolio.selectionCount > 0 ? 'לא ניתן למחוק — הלקוחה כבר בחרה תמונות' : 'מחיקת תיק'}
+                  className="flex items-center gap-1.5 text-xs text-stone-300 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed py-1"
                 >
                   <Trash2 size={12} />
-                  {deleting === portfolio.id ? 'מוחק...' : 'מחיקת תיק'}
+                  {deleting === portfolio.id ? 'מוחק...' : 'מחיקה'}
                 </button>
               </div>
             </div>

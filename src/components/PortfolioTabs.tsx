@@ -46,6 +46,10 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [sendingEmail, setSendingEmail] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [showResendConfirm, setShowResendConfirm] = useState(false)
+  const [quota, setQuota] = useState(portfolio.quota)
+  const [editingQuota, setEditingQuota] = useState(false)
+  const [quotaDraft, setQuotaDraft] = useState(String(portfolio.quota))
+  const [savingQuota, setSavingQuota] = useState(false)
   const creatingSessionRef = useRef(false)
 
   useEffect(() => { setSiteOrigin(window.location.origin) }, [])
@@ -304,6 +308,25 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     finally { setDeletingPhoto(null) }
   }
 
+  async function saveQuota() {
+    const val = parseInt(quotaDraft, 10)
+    if (!val || val < 1 || val > 999) { setQuotaDraft(String(quota)); setEditingQuota(false); return }
+    if (val === quota) { setEditingQuota(false); return }
+    setSavingQuota(true)
+    try {
+      const res = await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quota: val }),
+      })
+      const data = await res.json()
+      if (res.ok) { setQuota(val); toast('מכסה עודכנה') }
+      else toast(data.error || 'שגיאה בשמירה', 'error')
+    } catch { toast('שגיאה', 'error') }
+    setSavingQuota(false)
+    setEditingQuota(false)
+  }
+
   function photoName(photo: Photo): string {
     return photo.name || ''
   }
@@ -351,8 +374,32 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         </div>
         <div className="text-right text-xs text-stone-400 shrink-0">
           <div>{allPhotos.length} תמונות</div>
-          <div style={{ color: approvedPhotos.length > 0 ? color : undefined }}>
-            {approvedPhotos.length}/{portfolio.quota} נבחרו
+          <div className="flex items-center justify-end gap-1" style={{ color: approvedPhotos.length > 0 ? color : undefined }}>
+            {approvedPhotos.length}/
+            {editingQuota ? (
+              <span className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  type="number" min={1} max={999}
+                  value={quotaDraft}
+                  onChange={e => setQuotaDraft(e.target.value)}
+                  onBlur={saveQuota}
+                  onKeyDown={e => { if (e.key === 'Enter') saveQuota(); if (e.key === 'Escape') { setEditingQuota(false); setQuotaDraft(String(quota)) } }}
+                  className="w-12 px-1 py-0 rounded border border-stone-300 text-xs text-stone-700 focus:outline-none focus:border-rose-300 text-right"
+                  disabled={savingQuota}
+                />
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { if (selections.length === 0) { setQuotaDraft(String(quota)); setEditingQuota(true) } }}
+                title={selections.length === 0 ? 'לחץ לעריכת המכסה' : 'לא ניתן לשנות מכסה לאחר שהלקוחה בחרה תמונות'}
+                className={selections.length === 0 ? 'underline decoration-dashed cursor-pointer hover:text-stone-600' : 'cursor-default'}
+              >
+                {quota}
+              </button>
+            )}
+            {' '}נבחרו
           </div>
         </div>
       </div>
@@ -611,7 +658,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       {tab === 'selected' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-stone-500 text-sm">{approvedPhotos.length} תמונות אושרו מתוך {portfolio.quota}</p>
+            <p className="text-stone-500 text-sm">{approvedPhotos.length} תמונות אושרו מתוך {quota}</p>
             {approvedPhotos.length > 0 && (
               <button type="button" onClick={downloadReport}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold"

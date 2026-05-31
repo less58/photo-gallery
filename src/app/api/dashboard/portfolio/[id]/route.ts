@@ -54,6 +54,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const allowed: Record<string, unknown> = {}
   if ('cover_url' in updates) allowed.cover_url = updates.cover_url
   if ('instructions' in updates) allowed.instructions = updates.instructions
+  if ('is_done' in updates) allowed.is_done = updates.is_done
+
+  if ('quota' in updates) {
+    const { count } = await admin
+      .from('selections')
+      .select('*', { count: 'exact', head: true })
+      .eq('portfolio_id', id)
+    if ((count ?? 0) > 0) {
+      return Response.json({ error: 'לא ניתן לשנות מכסה לאחר שהלקוחה כבר בחרה תמונות' }, { status: 400 })
+    }
+    const q = Number(updates.quota)
+    if (!Number.isInteger(q) || q < 1 || q > 999) {
+      return Response.json({ error: 'מכסה לא תקינה' }, { status: 400 })
+    }
+    allowed.quota = q
+  }
 
   const { error } = await admin.from('portfolios').update(allowed).eq('id', id)
   if (error) return Response.json({ error: error.message }, { status: 500 })

@@ -99,6 +99,16 @@ export async function DELETE(req: NextRequest) {
 
   const { id } = await req.json()
   const admin = createAdminClient()
+
+  const { count } = await admin
+    .from('selections')
+    .select('*', { count: 'exact', head: true })
+    .eq('portfolio_id', id)
+
+  if ((count ?? 0) > 0) {
+    return Response.json({ error: 'לא ניתן למחוק תיק שבו הלקוחה כבר בחרה תמונות' }, { status: 400 })
+  }
+
   const { error } = await admin.from('portfolios').delete().eq('id', id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json({ ok: true })
