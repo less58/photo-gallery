@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Square, LayoutGrid } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Square, LayoutGrid, CheckSquare } from 'lucide-react'
 import NoteChat from './NoteChat'
 import CollageTab from './CollageTab'
 import AlbumTab from './AlbumTab'
@@ -775,11 +775,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                             {blocked > 0 ? `מחק ${deletable}` : `מחק ${selectedPhotoIds.size}`}
                           </button>
                         )}
-                        <button type="button" onClick={() => void deleteAllNonClientSelected()}
-                          disabled={bulkDeleting}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-400/40 text-red-300 hover:bg-red-600 hover:text-white hover:border-transparent text-xs font-medium transition disabled:opacity-40"
-                          title="מחק את כל התמונות בתיק שלא נבחרו ע&quot;י הלקוחה">
-                          <Trash2 size={12} /> מחק הכל
+                        <button type="button"
+                          onClick={() => setSelectedPhotoIds(new Set(allPhotos.map(p => p.id)))}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition"
+                          style={{ borderColor: color + '60', color, background: color + '10' }}>
+                          <CheckSquare size={12} /> בחר הכול
                         </button>
                         <button type="button" onClick={exitSelectionMode}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition">
@@ -864,12 +864,18 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                   <span className="text-stone-400 text-xs">{session.photos?.length || 0} תמונות</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {selectionMode && (session.photos?.length || 0) > 0 && (
-                    <button type="button" onClick={() => toggleSessionSelect(session)}
-                      className="text-xs text-stone-400 hover:text-stone-600 transition px-2 py-1 rounded border border-stone-200 hover:border-stone-300">
-                      {(session.photos || []).every(p => selectedPhotoIds.has(p.id)) ? 'בטל סשן' : 'בחר סשן'}
-                    </button>
-                  )}
+                  {selectionMode && (session.photos?.length || 0) > 0 && (() => {
+                    const allInSession = (session.photos || []).every(p => selectedPhotoIds.has(p.id))
+                    return (
+                      <button type="button" onClick={() => toggleSessionSelect(session)}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                        style={allInSession
+                          ? { background: color, color: '#fff' }
+                          : { background: color + '15', color, border: `1.5px solid ${color}60` }}>
+                        {allInSession ? 'בטל סשן' : 'בחר סשן'}
+                      </button>
+                    )
+                  })()}
                   {!isFrozen && !selectionMode && (
                     <button type="button" onClick={() => triggerUpload(session.id)}
                       className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-stone-200 text-stone-500 hover:border-stone-300 hover:text-stone-700 transition-colors">
@@ -917,7 +923,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                           <div className="absolute inset-0 pointer-events-none" style={{ background: color + '40' }} />
                         )}
 
-                        {/* Top-right: status badge (normal) or selection check (selection mode) */}
+                        {/* Top-right: selection circle (in selection mode) OR status badge (normal) */}
                         {selectionMode ? (
                           <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-white/60 shadow-sm"
                             style={{ background: selectedPhotoIds.has(photo.id) ? color : 'rgba(0,0,0,0.35)' }}>
@@ -932,6 +938,16 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                           </div>
                         ) : null}
 
+                        {/* In selection mode: also show client status badge on bottom-right */}
+                        {selectionMode && sel && (
+                          <div className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-sm"
+                            style={{ background: STATUS_COLOR[sel.status] }}>
+                            {sel.status === 'approved' ? <Check size={7} className="text-white" />
+                              : sel.status === 'rejected' ? <X size={7} className="text-white" />
+                              : <HelpCircle size={7} className="text-white" />}
+                          </div>
+                        )}
+
                         {/* Zoom hint (normal mode only) */}
                         {!selectionMode && (
                           <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
@@ -939,9 +955,9 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                           </div>
                         )}
 
-                        {/* Photo name on hover */}
+                        {/* Photo name — always visible */}
                         {photo.name && !selectionMode && (
-                          <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[8px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[8px] px-1 py-0.5 truncate">
                             {photo.name}
                           </div>
                         )}

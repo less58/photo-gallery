@@ -3,8 +3,6 @@
 import { useState, useRef } from 'react'
 import { X, Upload, GripVertical, Loader2, Save, AlertCircle } from 'lucide-react'
 
-const CHUNK_SIZE = 6 * 1024 * 1024
-
 type SignData = { signature: string; timestamp: number; apiKey: string; cloudName: string; folder: string }
 
 type ImageItem = {
@@ -23,48 +21,49 @@ type Props = {
   onClose: () => void
 }
 
-async function uploadToCloudinary(
+// XHR upload — gives real upload progress via xhr.upload.onprogress
+function uploadXHR(
   file: File,
   sig: SignData,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
+  xhrRef: React.MutableRefObject<XMLHttpRequest | null>
 ): Promise<string> {
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
-  const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`
-  let resultUrl = ''
-
-  for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE
-    const end = Math.min(start + CHUNK_SIZE, file.size)
+  return new Promise((resolve, reject) => {
     const fd = new FormData()
-    fd.append('file', file.slice(start, end))
+    fd.append('file', file)
     fd.append('folder', sig.folder)
     fd.append('timestamp', String(sig.timestamp))
     fd.append('api_key', sig.apiKey)
     fd.append('signature', sig.signature)
 
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`, {
-      method: 'POST',
-      headers: {
-        'X-Unique-Upload-Id': uploadId,
-        'Content-Range': `bytes ${start}-${end - 1}/${file.size}`,
-      },
-      body: fd,
-    })
+    const xhr = new XMLHttpRequest()
+    xhrRef.current = xhr
 
-    onProgress(Math.round(((i + 1) / totalChunks) * 100))
-
-    let data: Record<string, unknown> = {}
-    try { data = await res.json() } catch { /* intermediate chunk */ }
-
-    if (!res.ok && res.status !== 499) {
-      const msg = (data?.error as Record<string, string>)?.message || `שגיאת Cloudinary (${res.status})`
-      throw new Error(msg)
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
     }
-    if (data.secure_url) resultUrl = data.secure_url as string
-  }
 
-  if (!resultUrl) throw new Error('לא התקבל URL')
-  return resultUrl
+    xhr.onload = () => {
+      xhrRef.current = null
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText)
+          data.secure_url ? resolve(data.secure_url) : reject(new Error('לא התקבל URL'))
+        } catch { reject(new Error('שגיאה בפענוח תגובה')) }
+      } else {
+        try {
+          const data = JSON.parse(xhr.responseText)
+          reject(new Error(data.error?.message || `שגיאת Cloudinary (${xhr.status})`))
+        } catch { reject(new Error(`שגיאת Cloudinary (${xhr.status})`)) }
+      }
+    }
+
+    xhr.onerror = () => { xhrRef.current = null; reject(new Error('שגיאת רשת')) }
+    xhr.onabort = () => { xhrRef.current = null; reject(new Error('בוטל')) }
+
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`)
+    xhr.send(fd)
+  })
 }
 
 export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }: Props) {
@@ -78,6 +77,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
 
   const fileRef = useRef<HTMLInputElement>(null)
   const cancelRef = useRef(false)
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
 
   const isUploading = images.some(img => img.uploading)
   const uploadedCount = images.filter(img => img.url).length
@@ -107,7 +107,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
       const file = sorted[i]
       const item = newItems[i]
 
-      setImages(prev => prev.map(img => img.id === item.id ? { ...img, uploading: true } : img))
+      setImages(prev => prev.map(img => img.id === item.id ? { ...img, uploading: true, progress: 0 } : img))
       setCurrentUpload({ name: file.name, index: i + 1, total: sorted.length, progress: 0 })
 
       try {
@@ -119,19 +119,25 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
         if (!sigRes.ok) throw new Error('שגיאת אימות')
         const sig: SignData = await sigRes.json()
 
-        const url = await uploadToCloudinary(file, sig, pct => {
+        const url = await uploadXHR(file, sig, pct => {
           setImages(prev => prev.map(img => img.id === item.id ? { ...img, progress: pct } : img))
           setCurrentUpload(prev => prev ? { ...prev, progress: pct } : prev)
-        })
+        }, xhrRef)
 
         setImages(prev => prev.map(img =>
           img.id === item.id ? { ...img, url, uploading: false, progress: 100 } : img
         ))
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'שגיאה'
-        setImages(prev => prev.map(img =>
-          img.id === item.id ? { ...img, error: msg, uploading: false } : img
-        ))
+        if (msg !== 'בוטל') {
+          setImages(prev => prev.map(img =>
+            img.id === item.id ? { ...img, error: msg, uploading: false } : img
+          ))
+        } else {
+          setImages(prev => prev.map(img =>
+            img.id === item.id ? { ...img, uploading: false } : img
+          ))
+        }
       }
     }
 
@@ -173,6 +179,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
 
   function handleClose() {
     cancelRef.current = true
+    xhrRef.current?.abort()
     if (images.length > 0) {
       if (!confirm('לצאת בלי לשמור? האלבום לא יישמר')) return
     }
@@ -237,19 +244,19 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
           <div className="mx-5 mt-3 shrink-0 rounded-xl bg-stone-50 px-4 py-3 flex items-center gap-3 border border-stone-100">
             <Loader2 size={14} className="animate-spin text-stone-400 shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between text-xs text-stone-500 mb-1">
-                <span className="truncate">{currentUpload.name}</span>
-                <span className="shrink-0 mr-2">{currentUpload.index} מתוך {currentUpload.total}</span>
+              <div className="flex items-center justify-between text-xs text-stone-500 mb-1.5">
+                <span className="truncate font-medium">{currentUpload.name}</span>
+                <span className="shrink-0 mr-2 tabular-nums">{currentUpload.index} / {currentUpload.total}</span>
               </div>
               <div className="h-1.5 bg-stone-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full transition-all duration-200"
+                  className="h-full rounded-full transition-all duration-100"
                   style={{ width: `${currentUpload.progress}%`, background: color }}
                 />
               </div>
             </div>
             <button
-              onClick={() => { cancelRef.current = true }}
+              onClick={() => { cancelRef.current = true; xhrRef.current?.abort() }}
               className="text-stone-400 hover:text-red-500 transition shrink-0 p-1"
               title="בטל העלאה"
             >
@@ -261,54 +268,74 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
         {/* Images grid */}
         {images.length > 0 && (
           <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
-            <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
               {images.map((img, idx) => (
                 <div
                   key={img.id}
+                  className="flex flex-col gap-1"
                   draggable={!!img.url}
                   onDragStart={e => onDragStartItem(e, idx)}
                   onDragOver={e => onDragOverItem(e, idx)}
                   onDrop={e => onDropItem(e, idx)}
                   onDragEnd={() => { setDraggedIdx(null); setDropTargetIdx(null) }}
-                  className={`relative aspect-square rounded-lg overflow-hidden bg-stone-100 border-2 transition-all select-none ${
-                    dropTargetIdx === idx && draggedIdx !== idx
-                      ? 'border-rose-400 scale-105'
-                      : 'border-transparent'
-                  } ${draggedIdx === idx ? 'opacity-30' : ''} ${img.url ? 'cursor-grab' : ''}`}
                 >
-                  {img.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={img.url} alt="" className="w-full h-full object-cover" draggable={false} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      {img.error
-                        ? <AlertCircle size={18} className="text-red-400" />
-                        : <Loader2 size={18} className="animate-spin text-stone-300" />
-                      }
-                    </div>
-                  )}
+                  {/* Image cell — fixed height, object-contain so full image is visible */}
+                  <div
+                    className={`h-20 rounded-lg overflow-hidden bg-stone-100 border-2 relative select-none transition-all ${
+                      dropTargetIdx === idx && draggedIdx !== idx ? 'border-rose-400 scale-105' : 'border-transparent'
+                    } ${draggedIdx === idx ? 'opacity-30' : ''} ${img.url ? 'cursor-grab' : ''}`}
+                  >
+                    {img.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={img.url}
+                        alt=""
+                        className="w-full h-full object-contain"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        {img.error
+                          ? <AlertCircle size={18} className="text-red-400" />
+                          : <Loader2 size={18} className="animate-spin text-stone-300" />
+                        }
+                      </div>
+                    )}
 
-                  {/* Page number */}
-                  <div className="absolute bottom-0.5 left-0.5 bg-black/50 text-white text-[9px] rounded px-1 leading-4 pointer-events-none">
-                    {idx + 1}
+                    {/* Page number badge */}
+                    <div className="absolute bottom-0.5 left-0.5 bg-black/50 text-white text-[9px] rounded px-1 leading-4 pointer-events-none">
+                      {idx + 1}
+                    </div>
+
+                    {/* Remove button */}
+                    {img.url && (
+                      <button
+                        onClick={() => removeImage(img.id)}
+                        className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 hover:bg-red-500 text-white flex items-center justify-center transition"
+                      >
+                        <X size={9} />
+                      </button>
+                    )}
+
+                    {/* Upload progress overlay */}
+                    {img.uploading && (
+                      <div className="absolute inset-x-0 bottom-0 h-1 bg-stone-200">
+                        <div className="h-full transition-all duration-100" style={{ width: `${img.progress}%`, background: color }} />
+                      </div>
+                    )}
+
+                    {/* Drag handle */}
+                    {img.url && (
+                      <div className="absolute top-0.5 left-0.5 text-white/50 pointer-events-none">
+                        <GripVertical size={11} />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Remove */}
-                  {img.url && (
-                    <button
-                      onClick={() => removeImage(img.id)}
-                      className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 hover:bg-red-500 text-white flex items-center justify-center transition"
-                    >
-                      <X size={9} />
-                    </button>
-                  )}
-
-                  {/* Drag handle hint */}
-                  {img.url && (
-                    <div className="absolute top-0.5 left-0.5 text-white/50 pointer-events-none">
-                      <GripVertical size={11} />
-                    </div>
-                  )}
+                  {/* Filename under thumbnail */}
+                  <p className="text-[9px] text-stone-400 truncate text-center leading-tight px-0.5" title={img.name}>
+                    {img.name}
+                  </p>
                 </div>
               ))}
             </div>
