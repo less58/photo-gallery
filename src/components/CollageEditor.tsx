@@ -199,6 +199,8 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
   const [fromCustom, setFromCustom] = useState(false)
   const [collageName, setCollageName] = useState(collage?.name || 'קולאג׳ חדש')
   const [saving, setSaving] = useState(false)
+  const [hasEdited, setHasEdited] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [customTemplates, setCustomTemplates] = useState<CollageTemplate[]>([])
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
@@ -223,6 +225,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
   )
   const [uploadingCell, setUploadingCell] = useState<string | null>(null)
   const [uploadingAll, setUploadingAll] = useState(false)
+  const [uploadAllProgress, setUploadAllProgress] = useState<{ done: number; total: number } | null>(null)
   const [borderEnabled, setBorderEnabled] = useState(collage?.border_enabled ?? false)
   const [borderColor, setBorderColor] = useState(collage?.border_color ?? '#ffffff')
   const [borderWidth, setBorderWidth] = useState(collage?.border_width ?? 4)
@@ -240,11 +243,17 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
       .catch(() => {})
   }, [])
 
+  // ─── Close with confirmation ────────────────────────────────────────────────
+  function handleClose() {
+    if (hasEdited) { setShowCloseConfirm(true) } else { onClose() }
+  }
+
   // ─── Template step ──────────────────────────────────────────────────────────
   function selectPreset(cells: NCell[]) {
     const abs = denorm(cells)
     setLayoutCells(abs)
     setFilledCells(toFilledCells(abs))
+    setHasEdited(true)
     setFromCustom(false)
     setStep('fill')
   }
@@ -259,6 +268,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
 
   function goCustom() {
     setFromCustom(true)
+    setHasEdited(true)
     setStep('layout')
   }
 
@@ -397,6 +407,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
 
   // ─── Fill step handlers ─────────────────────────────────────────────────────
   async function uploadToCell(cellId: string, file: File) {
+    setHasEdited(true)
     setUploadingCell(cellId)
     try {
       const fd = new FormData()
@@ -412,16 +423,26 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
   }
 
   async function uploadAllFiles(files: FileList) {
+    setHasEdited(true)
     setUploadingAll(true)
     const arr = Array.from(files).slice(0, filledCells.length)
+    const total = arr.length
+    setUploadAllProgress({ done: 0, total })
+
     const results = await Promise.all(arr.map((file, i) => {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('folder', `collages/${portfolioId}`)
       return fetch('/api/upload', { method: 'POST', body: fd })
         .then(r => r.json())
-        .then(d => ({ i, url: (d.url as string) || null }))
-        .catch(() => ({ i, url: null }))
+        .then(d => {
+          setUploadAllProgress(p => p ? { done: p.done + 1, total: p.total } : null)
+          return { i, url: (d.url as string) || null }
+        })
+        .catch(() => {
+          setUploadAllProgress(p => p ? { done: p.done + 1, total: p.total } : null)
+          return { i, url: null }
+        })
     }))
     setFilledCells(prev => {
       const next = [...prev]
@@ -431,6 +452,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
       return next
     })
     setUploadingAll(false)
+    setUploadAllProgress(null)
   }
 
   function removePhoto(cellId: string) {
@@ -495,7 +517,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
         })
       }
       const data = await res.json()
-      if (data.id) onSave(data as Collage)
+      if (data.id) { setHasEdited(false); onSave(data as Collage) }
     } catch { /* ignore */ }
     setSaving(false)
   }
@@ -504,12 +526,31 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
   const btnStyle = { background: color, color: '#fff' }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 sm:p-4" onClick={handleClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl flex flex-col"
+        className="relative bg-white rounded-2xl shadow-2xl flex flex-col"
         style={{ width: '95vw', maxWidth: 1060, maxHeight: '97vh' }}
         onClick={e => e.stopPropagation()}
       >
+        {/* Close confirmation dialog */}
+        {showCloseConfirm && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 rounded-2xl">
+            <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-xs w-full mx-4 text-center">
+              <p className="text-stone-800 font-semibold text-base mb-1">לסגור ללא שמירה?</p>
+              <p className="text-stone-500 text-sm mb-6">כל השינויים שלא נשמרו יאבדו</p>
+              <div className="flex gap-3 justify-center">
+                <button type="button" onClick={onClose}
+                  className="px-5 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition">
+                  סגור ללא שמירה
+                </button>
+                <button type="button" onClick={() => setShowCloseConfirm(false)}
+                  className="px-5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold transition">
+                  המשך עריכה
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-stone-200 shrink-0">
           <input
@@ -518,7 +559,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
             className="flex-1 text-base font-semibold text-stone-800 border-none outline-none bg-transparent"
             placeholder="שם הקולאג׳"
           />
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-600 p-1 transition">
+          <button onClick={handleClose} className="text-stone-400 hover:text-stone-600 p-1 transition">
             <X size={20} />
           </button>
         </div>
@@ -673,11 +714,22 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm text-stone-500 flex-wrap">
                 <span>{filledCells.length} תאים · {filledCells.filter(c => c.photo_url).length} ממולאים</span>
-                <button type="button" onClick={() => fillAllInputRef.current?.click()}
+                <button type="button" onClick={() => !uploadingAll && fillAllInputRef.current?.click()}
                   disabled={uploadingAll}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-stone-200 hover:bg-stone-50 transition text-stone-600 disabled:opacity-40">
-                  <Upload size={13} />
-                  {uploadingAll ? 'מעלה...' : 'העלה הכל'}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition disabled:cursor-not-allowed"
+                  style={uploadingAll
+                    ? { background: color + '18', borderColor: color + '40', color }
+                    : { background: 'white', borderColor: '#e7e5e4', color: '#44403c' }}>
+                  {uploadingAll ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+                      <span className="font-bold text-sm">
+                        {uploadAllProgress ? `מעלה ${uploadAllProgress.done}/${uploadAllProgress.total}...` : 'מעלה...'}
+                      </span>
+                    </>
+                  ) : (
+                    <><Upload size={13} /><span>העלה הכל</span></>
+                  )}
                 </button>
                 <input ref={fillAllInputRef} type="file" accept="image/*" multiple className="hidden"
                   onChange={e => { if (e.target.files) void uploadAllFiles(e.target.files); e.target.value = '' }} />

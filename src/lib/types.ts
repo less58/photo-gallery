@@ -71,6 +71,15 @@ export type CollageTemplate = {
   is_preset?: boolean
 }
 
+export type Album = {
+  id: string
+  portfolio_id: string
+  name: string
+  pdf_url: string
+  page_count: number
+  created_at: string
+}
+
 export type Collage = {
   id: string
   portfolio_id: string

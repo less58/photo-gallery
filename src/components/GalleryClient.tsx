@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut, Download, LayoutGrid, Loader2 } from 'lucide-react'
-import type { Session, Photo, Selection, SelectionStatus, Collage } from '@/lib/types'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut, Download, LayoutGrid, Loader2, BookOpen } from 'lucide-react'
+import type { Session, Photo, Selection, SelectionStatus, Collage, Album } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
 import NoteChat from './NoteChat'
 import { useToast } from './Toast'
 import { CollagePreview, downloadCollage } from './CollageEditor'
+import AlbumViewer from './AlbumViewer'
 
 type Props = {
   sessions: Session[]
@@ -25,6 +26,7 @@ type Props = {
   showSendButton?: boolean
   isDone?: boolean
   collages?: Collage[]
+  albums?: Album[]
 }
 
 const STATUS_COLOR: Record<SelectionStatus, string> = {
@@ -33,7 +35,7 @@ const STATUS_COLOR: Record<SelectionStatus, string> = {
   maybe: '#F59E0B',
 }
 
-type GalleryTab = 'gallery' | 'selected' | 'collages'
+type GalleryTab = 'gallery' | 'selected' | 'collages' | 'albums'
 
 export default function GalleryClient({
   sessions, allPhotos, initialSelections, quota, color,
@@ -41,6 +43,7 @@ export default function GalleryClient({
   showSendButton = true,
   isDone = false,
   collages = [],
+  albums = [],
 }: Props) {
   const toast = useToast()
   const [activeSession, setActiveSession] = useState<string | 'all'>('all')
@@ -57,6 +60,9 @@ export default function GalleryClient({
   const [showChat, setShowChat] = useState(false)
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
+
+  // Album viewer state
+  const [viewingAlbum, setViewingAlbum] = useState<Album | null>(null)
 
   // Collage download state
   const [downloadingCollageId, setDownloadingCollageId] = useState<string | null>(null)
@@ -356,6 +362,16 @@ export default function GalleryClient({
                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{collages.length}</span>
               </button>
             )}
+            {albums.length > 0 && (
+              <button
+                onClick={() => setTab('albums')}
+                className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition flex items-center gap-1"
+                style={tab === 'albums' ? { background: color, color: '#fff' } : { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
+                <BookOpen size={11} />
+                אלבומים
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{albums.length}</span>
+              </button>
+            )}
 
             <div className="w-px h-4 bg-white/20 shrink-0" />
 
@@ -591,6 +607,48 @@ export default function GalleryClient({
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Albums tab ── */}
+      {tab === 'albums' && (
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {albums.length === 0 ? (
+            <div className="text-center py-20 text-white/30">
+              <BookOpen size={36} strokeWidth={1.2} className="mx-auto mb-3 opacity-40" />
+              <p>אין אלבומים עדיין</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {albums.map(album => (
+                <button
+                  key={album.id}
+                  type="button"
+                  onClick={() => setViewingAlbum(album)}
+                  className="group text-right rounded-2xl overflow-hidden bg-stone-900 border border-white/10 hover:border-white/25 transition-all hover:scale-[1.02]"
+                >
+                  <div className="aspect-[3/2] flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg, #2d1b00, #1a0f00)' }}>
+                    <BookOpen size={40} className="text-amber-400/60" strokeWidth={1} />
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-white group-hover:text-amber-200 transition-colors">{album.name}</p>
+                      <p className="text-xs text-white/40">{album.page_count} עמודים</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-amber-400/20 flex items-center justify-center transition-colors">
+                      <ChevronLeft size={16} className="text-white/50 group-hover:text-amber-300 transition-colors" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Album viewer */}
+      {viewingAlbum && (
+        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} />
       )}
 
       {/* ── Lightbox ── */}
