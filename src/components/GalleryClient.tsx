@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle } from 'lucide-react'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut } from 'lucide-react'
 import type { Session, Photo, Selection, SelectionStatus } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
@@ -55,6 +55,14 @@ export default function GalleryClient({
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
 
+  // Lightbox zoom/pan state
+  const [lightboxZoom, setLightboxZoom] = useState(100)
+  const [lightboxPan, setLightboxPan] = useState({ x: 0, y: 0 })
+  const [lbGrabbing, setLbGrabbing] = useState(false)
+  const lbDragging = useRef(false)
+  const lbDragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 })
+  const lightboxContainerRef = useRef<HTMLDivElement>(null)
+
   // Poll for unread messages from photographer (badge on chat button)
   useEffect(() => {
     let alive = true
@@ -68,6 +76,29 @@ export default function GalleryClient({
     const interval = setInterval(check, 15000)
     return () => { alive = false; clearInterval(interval) }
   }, [portfolioId])
+
+  // Reset zoom+pan when switching photos
+  useEffect(() => {
+    setLightboxZoom(100)
+    setLightboxPan({ x: 0, y: 0 })
+  }, [lightbox?.id])
+
+  // Non-passive wheel listener so we can preventDefault and prevent background scroll
+  useEffect(() => {
+    if (!lightbox) return
+    const el = lightboxContainerRef.current
+    if (!el) return
+    function onWheel(e: WheelEvent) {
+      e.preventDefault()
+      setLightboxZoom(prev => {
+        const next = Math.max(100, Math.min(400, prev + (e.deltaY < 0 ? 25 : -25)))
+        if (next === 100) setLightboxPan({ x: 0, y: 0 })
+        return next
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [lightbox])
 
   const visiblePhotos = activeSession === 'all'
     ? allPhotos
@@ -95,6 +126,62 @@ export default function GalleryClient({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [lightbox, moveLightbox])
+
+  // Lightbox zoom handlers
+  function lbZoomIn(e: React.MouseEvent) {
+    e.stopPropagation()
+    setLightboxZoom(z => Math.min(z + 25, 400))
+  }
+
+  function lbZoomOut(e: React.MouseEvent) {
+    e.stopPropagation()
+    setLightboxZoom(z => {
+      const next = Math.max(z - 25, 100)
+      if (next === 100) setLightboxPan({ x: 0, y: 0 })
+      return next
+    })
+  }
+
+  // Lightbox pan (mouse)
+  function lbMouseDown(e: React.MouseEvent) {
+    if (lightboxZoom <= 100 || (e.target as HTMLElement).closest('button')) return
+    lbDragging.current = true
+    setLbGrabbing(true)
+    lbDragOrigin.current = { mx: e.clientX, my: e.clientY, px: lightboxPan.x, py: lightboxPan.y }
+    e.preventDefault()
+  }
+
+  function lbMouseMove(e: React.MouseEvent) {
+    if (!lbDragging.current) return
+    setLightboxPan({
+      x: lbDragOrigin.current.px + (e.clientX - lbDragOrigin.current.mx),
+      y: lbDragOrigin.current.py + (e.clientY - lbDragOrigin.current.my),
+    })
+  }
+
+  function lbMouseUp() {
+    lbDragging.current = false
+    setLbGrabbing(false)
+  }
+
+  // Lightbox pan (touch)
+  function lbTouchStart(e: React.TouchEvent) {
+    if (lightboxZoom <= 100 || e.touches.length !== 1) return
+    const t = e.touches[0]
+    lbDragging.current = true
+    lbDragOrigin.current = { mx: t.clientX, my: t.clientY, px: lightboxPan.x, py: lightboxPan.y }
+  }
+
+  function lbTouchMove(e: React.TouchEvent) {
+    if (!lbDragging.current || e.touches.length !== 1) return
+    const t = e.touches[0]
+    setLightboxPan({
+      x: lbDragOrigin.current.px + (t.clientX - lbDragOrigin.current.mx),
+      y: lbDragOrigin.current.py + (t.clientY - lbDragOrigin.current.my),
+    })
+  }
+
+  function lbTouchEnd() { lbDragging.current = false }
 
   const handleMark = useCallback(async (photoId: string, status: SelectionStatus | null) => {
     if (isDone) {
@@ -450,32 +537,70 @@ export default function GalleryClient({
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
-          <div className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center"
-            onClick={e => e.stopPropagation()}>
+          <div
+            ref={lightboxContainerRef}
+            className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center overflow-hidden"
+            onClick={e => e.stopPropagation()}
+            onMouseDown={lbMouseDown}
+            onMouseMove={lbMouseMove}
+            onMouseUp={lbMouseUp}
+            onMouseLeave={lbMouseUp}
+            onTouchStart={lbTouchStart}
+            onTouchMove={lbTouchMove}
+            onTouchEnd={lbTouchEnd}
+            style={{ cursor: lbGrabbing ? 'grabbing' : lightboxZoom > 100 ? 'grab' : 'default' }}
+          >
             <Image
               src={lightbox.url}
               alt={lightbox.name || ''}
               fill unoptimized
-              className="object-contain"
+              draggable={false}
+              className="object-contain pointer-events-none select-none"
+              style={{
+                transform: `translate(${lightboxPan.x}px, ${lightboxPan.y}px) scale(${lightboxZoom / 100})`,
+                transformOrigin: 'center',
+              }}
             />
+
+            {/* Navigation arrows */}
             {visiblePhotos.length > 1 && (
               <>
-                <button type="button" onClick={() => moveLightbox(1)}
-                  className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                <button type="button" onClick={e => { e.stopPropagation(); moveLightbox(1) }}
+                  className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10">
                   <ChevronRight size={24} />
                 </button>
-                <button type="button" onClick={() => moveLightbox(-1)}
-                  className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition">
+                <button type="button" onClick={e => { e.stopPropagation(); moveLightbox(-1) }}
+                  className="absolute left-2 sm:left-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10">
                   <ChevronLeft size={24} />
                 </button>
               </>
             )}
+
+            {/* Photo name */}
             {lightbox.name && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 max-w-[70vw] truncate rounded-full bg-black/50 px-3 py-1 text-xs text-white/70" dir="ltr">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 max-w-[70vw] truncate rounded-full bg-black/50 px-3 py-1 text-xs text-white/70 z-10" dir="ltr">
                 {lightbox.name}
               </div>
             )}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3">
+
+            {/* Zoom controls */}
+            <div
+              className="absolute bottom-16 right-4 flex flex-col items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-xl p-2 z-10"
+              onMouseDown={e => e.stopPropagation()}
+            >
+              <button type="button" onClick={lbZoomIn}
+                className="w-7 h-7 flex items-center justify-center hover:bg-white/15 rounded-lg transition">
+                <ZoomIn size={14} className="text-white" />
+              </button>
+              <span className="text-[11px] text-white/70 font-mono w-10 text-center select-none">{lightboxZoom}%</span>
+              <button type="button" onClick={lbZoomOut} disabled={lightboxZoom <= 100}
+                className="w-7 h-7 flex items-center justify-center hover:bg-white/15 rounded-lg transition disabled:opacity-30">
+                <ZoomOut size={14} className="text-white" />
+              </button>
+            </div>
+
+            {/* Selection buttons */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 z-10">
               {(['approved', 'maybe', 'rejected'] as SelectionStatus[]).map(s => {
                 const blocked = s === 'approved' && isApproveBlocked && selections[lightbox.id] !== 'approved'
                 return (
@@ -489,8 +614,10 @@ export default function GalleryClient({
                 )
               })}
             </div>
+
+            {/* Close button */}
             <button type="button" onClick={() => setLightbox(null)}
-              className="absolute top-2 right-2 text-white/50 hover:text-white p-2">
+              className="absolute top-2 right-2 text-white/50 hover:text-white p-2 z-10">
               <X size={22} />
             </button>
           </div>
