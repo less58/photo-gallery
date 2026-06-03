@@ -1040,8 +1040,15 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       {/* ── Notes tab ── */}
       {tab === 'notes' && (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-stone-100 bg-stone-50">
+          <div className="px-5 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">הודעות עם הלקוחה</h3>
+            <Link
+              href={`/dashboard/messages?portfolio=${portfolio.id}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-500 text-xs font-medium hover:border-stone-300 hover:text-stone-700 transition-colors"
+            >
+              <MessageCircle size={12} />
+              מעבר לצאט
+            </Link>
           </div>
           <NoteChat
             fetchUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}

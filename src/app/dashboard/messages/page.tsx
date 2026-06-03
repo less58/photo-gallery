@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { MessageCircle, ArrowRight, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { MessageCircle, ArrowRight, ChevronDown, ChevronUp, Search, FolderOpen } from 'lucide-react'
+import Link from 'next/link'
 import NoteChat from '@/components/NoteChat'
 
 type Conversation = {
@@ -85,13 +87,17 @@ function ConvItem({
   )
 }
 
-export default function MessagesPage() {
+function MessagesPageInner() {
+  const searchParams = useSearchParams()
+  const portfolioParam = searchParams.get('portfolio')
+
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [showCompleted, setShowCompleted] = useState(false)
   const [search, setSearch] = useState('')
+  const autoSelectedRef = useRef(false)
 
   const fetchSummary = useCallback((silent = false) => {
     fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
@@ -108,6 +114,19 @@ export default function MessagesPage() {
     const interval = setInterval(() => fetchSummary(true), 30000)
     return () => clearInterval(interval)
   }, [fetchSummary])
+
+  // Auto-select portfolio from URL param (e.g. coming from portfolio notes tab)
+  useEffect(() => {
+    if (!portfolioParam || autoSelectedRef.current || loading) return
+    const match = conversations.find(c => c.portfolioId === portfolioParam)
+    if (!match) return
+    autoSelectedRef.current = true
+    setSelectedId(portfolioParam)
+    setShowSidebar(false)
+    setConversations(prev =>
+      prev.map(c => c.portfolioId === portfolioParam ? { ...c, unreadCount: 0 } : c)
+    )
+  }, [portfolioParam, conversations, loading])
 
   function selectConversation(portfolioId: string) {
     setSelectedId(portfolioId)
@@ -227,6 +246,13 @@ export default function MessagesPage() {
               {selected?.isDone && (
                 <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">הושלם</span>
               )}
+              <Link
+                href={`/dashboard/portfolio/${selectedId}`}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-500 text-xs font-medium hover:border-stone-300 hover:text-stone-700 transition-colors"
+              >
+                <FolderOpen size={13} />
+                מעבר לתיק
+              </Link>
             </div>
 
             <div className="flex-1 overflow-hidden">
@@ -243,5 +269,13 @@ export default function MessagesPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense>
+      <MessagesPageInner />
+    </Suspense>
   )
 }
