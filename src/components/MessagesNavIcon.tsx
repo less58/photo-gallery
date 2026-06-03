@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { MessageCircle } from 'lucide-react'
 import { usePathname } from 'next/navigation'
@@ -9,21 +9,28 @@ export default function MessagesNavIcon() {
   const [unread, setUnread] = useState(0)
   const pathname = usePathname()
 
+  const fetchUnread = useCallback(() => {
+    fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUnread(data.reduce((a, c) => a + (c.unreadCount ?? 0), 0))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
-    function fetchUnread() {
-      fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
-        .then(r => r.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            setUnread(data.reduce((a, c) => a + (c.unreadCount ?? 0), 0))
-          }
-        })
-        .catch(() => {})
-    }
     fetchUnread()
-    const interval = setInterval(fetchUnread, 30000)
+    const interval = setInterval(fetchUnread, 15000)
     return () => clearInterval(interval)
-  }, [pathname]) // re-fetch when navigating (e.g. returning from messages page)
+  }, [pathname, fetchUnread])
+
+  // Re-fetch immediately when messages are marked as read elsewhere
+  useEffect(() => {
+    window.addEventListener('messages-read', fetchUnread)
+    return () => window.removeEventListener('messages-read', fetchUnread)
+  }, [fetchUnread])
 
   const isActive = pathname === '/dashboard/messages'
 

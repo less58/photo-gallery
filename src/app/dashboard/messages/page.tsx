@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { MessageCircle, ArrowRight, ChevronDown, ChevronUp, Search, FolderOpen } from 'lucide-react'
+import { MessageCircle, ArrowRight, Search, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import NoteChat from '@/components/NoteChat'
 
@@ -78,9 +78,14 @@ function ConvItem({
         <Avatar coverUrl={conv.coverUrl} title={conv.portfolioTitle} sentUnread={conv.unreadByClient > 0} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-semibold text-stone-800 text-sm truncate">
-              {conv.portfolioTitle}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-semibold text-stone-800 text-sm truncate">
+                {conv.portfolioTitle}
+              </span>
+              {conv.isDone && (
+                <span className="shrink-0 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">הושלם</span>
+              )}
+            </div>
             <div className="flex items-center gap-1 shrink-0">
               {formatMsgTime(conv.lastMessageAt) && (
                 <span className="text-stone-400 text-[10px]">{formatMsgTime(conv.lastMessageAt)}</span>
@@ -121,7 +126,6 @@ function MessagesPageInner() {
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
-  const [showCompleted, setShowCompleted] = useState(false)
   const [search, setSearch] = useState('')
   const autoSelectedRef = useRef(false)
   const selectedIdRef = useRef<string | null>(null)
@@ -158,6 +162,7 @@ function MessagesPageInner() {
     setConversations(prev =>
       prev.map(c => c.portfolioId === portfolioParam ? { ...c, unreadCount: 0 } : c)
     )
+    window.dispatchEvent(new Event('messages-read'))
   }, [portfolioParam, conversations, loading])
 
   function selectConversation(portfolioId: string) {
@@ -167,6 +172,7 @@ function MessagesPageInner() {
     setConversations(prev =>
       prev.map(c => c.portfolioId === portfolioId ? { ...c, unreadCount: 0 } : c)
     )
+    window.dispatchEvent(new Event('messages-read'))
   }
 
 
@@ -179,8 +185,6 @@ function MessagesPageInner() {
     )
   }, [conversations, search])
 
-  const active = filtered.filter(c => !c.isDone)
-  const completed = filtered.filter(c => c.isDone)
   const selected = conversations.find(c => c.portfolioId === selectedId)
 
   return (
@@ -209,18 +213,18 @@ function MessagesPageInner() {
         <div className="flex-1 overflow-y-auto">
           {loading && <p className="text-center text-stone-400 text-xs py-10">טוענת...</p>}
 
-          {!loading && active.length === 0 && !search && (
+          {!loading && filtered.length === 0 && !search && (
             <div className="text-center py-10">
               <MessageCircle size={30} strokeWidth={1.2} className="mx-auto mb-2 text-stone-200" />
-              <p className="text-stone-400 text-sm">אין תיקים פעילים</p>
+              <p className="text-stone-400 text-sm">אין שיחות עדיין</p>
             </div>
           )}
 
-          {!loading && active.length === 0 && search && (
+          {!loading && filtered.length === 0 && search && (
             <p className="text-center text-stone-400 text-xs py-8">לא נמצאו תוצאות</p>
           )}
 
-          {active.map(conv => (
+          {filtered.map(conv => (
             <ConvItem
               key={conv.portfolioId}
               conv={conv}
@@ -228,28 +232,6 @@ function MessagesPageInner() {
               onClick={() => selectConversation(conv.portfolioId)}
             />
           ))}
-
-          {/* Completed portfolios toggle */}
-          {completed.length > 0 && (
-            <div className="border-t border-stone-100">
-              <button
-                type="button"
-                onClick={() => setShowCompleted(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-stone-400 hover:text-stone-600 hover:bg-stone-50 transition-colors"
-              >
-                <span>תיקים שהושלמו ({completed.length})</span>
-                {showCompleted ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              </button>
-              {showCompleted && completed.map(conv => (
-                <ConvItem
-                  key={conv.portfolioId}
-                  conv={conv}
-                  isSelected={selectedId === conv.portfolioId}
-                  onClick={() => selectConversation(conv.portfolioId)}
-                />
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
