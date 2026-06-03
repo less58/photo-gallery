@@ -13,6 +13,7 @@ type Conversation = {
   isDone: boolean
   coverUrl: string | null
   unreadCount: number
+  unreadByClient: number
   lastMessage: string | null
   lastMessageAt: string | null
   lastSender: 'photographer' | 'client' | null
@@ -30,19 +31,27 @@ function formatMsgTime(dateStr: string | null): string | null {
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })
 }
 
-function Avatar({ coverUrl, title }: { coverUrl: string | null; title: string }) {
+function Avatar({ coverUrl, title, sentUnread = false }: { coverUrl: string | null; title: string; sentUnread?: boolean }) {
   const letter = title.trim()[0] ?? '?'
   const thumb = coverUrl?.includes('cloudinary.com')
     ? coverUrl.replace('/upload/', '/upload/w_80,h_80,c_fill,q_auto/')
     : coverUrl
 
   return (
-    <div className="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-stone-200 flex items-center justify-center">
-      {thumb ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={thumb} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <span className="text-stone-500 text-sm font-semibold select-none">{letter}</span>
+    <div className="shrink-0 relative w-10 h-10">
+      <div className="w-10 h-10 rounded-full overflow-hidden bg-stone-200 flex items-center justify-center">
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumb} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-stone-500 text-sm font-semibold select-none">{letter}</span>
+        )}
+      </div>
+      {sentUnread && (
+        <span
+          className="absolute bottom-0 left-0 w-3 h-3 rounded-full border-2 border-white"
+          style={{ background: 'var(--brand)' }}
+        />
       )}
     </div>
   )
@@ -66,7 +75,7 @@ function ConvItem({
       }`}
     >
       <div className="flex items-center gap-3">
-        <Avatar coverUrl={conv.coverUrl} title={conv.portfolioTitle} />
+        <Avatar coverUrl={conv.coverUrl} title={conv.portfolioTitle} sentUnread={conv.unreadByClient > 0} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <span className="font-semibold text-stone-800 text-sm truncate">
@@ -152,6 +161,8 @@ function MessagesPageInner() {
       prev.map(c => c.portfolioId === portfolioId ? { ...c, unreadCount: 0 } : c)
     )
   }
+
+
 
   const filtered = useMemo(() => {
     if (!search.trim()) return conversations
@@ -254,7 +265,7 @@ function MessagesPageInner() {
                 <ArrowRight size={18} />
               </button>
               {selected && (
-                <Avatar coverUrl={selected.coverUrl} title={selected.portfolioTitle} />
+                <Avatar coverUrl={selected.coverUrl} title={selected.portfolioTitle} sentUnread={selected.unreadByClient > 0} />
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-stone-800 text-sm truncate">{selected?.portfolioTitle}</p>

@@ -41,10 +41,25 @@ export async function POST(req: NextRequest, { params }: Params) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('portfolio_notes')
-    .insert({ portfolio_id: portfolioId, sender: 'client', message: message.trim() })
+    .insert({ portfolio_id: portfolioId, sender: 'client', message: message.trim(), read_by_client: true })
     .select('*')
     .single()
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)
+}
+
+export async function PATCH(_req: NextRequest, { params }: Params) {
+  const { portfolioId } = await params
+  if (!await getSession(portfolioId)) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
+
+  const admin = createAdminClient()
+  await admin
+    .from('portfolio_notes')
+    .update({ read_by_client: true })
+    .eq('portfolio_id', portfolioId)
+    .eq('sender', 'photographer')
+    .eq('read_by_client', false)
+
+  return Response.json({ ok: true })
 }

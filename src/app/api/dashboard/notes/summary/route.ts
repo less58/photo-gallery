@@ -30,7 +30,7 @@ export async function GET() {
 
   const { data: notes } = await admin
     .from('portfolio_notes')
-    .select('portfolio_id, sender, message, created_at, read_by_photographer')
+    .select('portfolio_id, sender, message, created_at, read_by_photographer, read_by_client')
     .in('portfolio_id', portfolioIds)
     .order('created_at', { ascending: false })
 
@@ -40,6 +40,9 @@ export async function GET() {
       const unreadCount = pNotes.filter(
         n => n.sender === 'client' && !n.read_by_photographer
       ).length
+      const unreadByClient = pNotes.filter(
+        n => n.sender === 'photographer' && !n.read_by_client
+      ).length
       const lastNote = pNotes[0]
       return {
         portfolioId: p.id,
@@ -48,6 +51,7 @@ export async function GET() {
         isDone: !!(p as { is_done?: boolean }).is_done,
         coverUrl: (p as { cover_url?: string | null }).cover_url ?? null,
         unreadCount,
+        unreadByClient,
         lastMessage: lastNote?.message?.slice(0, 80) ?? null,
         lastMessageAt: lastNote?.created_at ?? null,
         lastSender: lastNote?.sender ?? null,

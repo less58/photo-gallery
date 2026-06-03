@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('portfolio_notes')
-    .insert({ portfolio_id: id, sender: 'photographer', message: message.trim(), read_by_photographer: true })
+    .insert({ portfolio_id: id, sender: 'photographer', message: message.trim(), read_by_photographer: true, read_by_client: false })
     .select('*')
     .single()
 

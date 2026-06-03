@@ -50,11 +50,10 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
     return () => { alive = false; clearInterval(interval) }
   }, [fetchUrl])
 
-  // Mark as read when photographer opens chat
+  // Mark as read when either side opens the chat
   useEffect(() => {
-    if (mySender !== 'photographer') return
     fetch(fetchUrl, { method: 'PATCH' }).catch(() => {})
-  }, [mySender, fetchUrl])
+  }, [fetchUrl])
 
   // Scroll to bottom on new messages
   useEffect(() => {
