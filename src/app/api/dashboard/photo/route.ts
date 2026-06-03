@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
 
   const sortOrder = (existing?.sort_order ?? -1) + 1
 
-  // Try with name column first, fall back without if column doesn't exist
   let { data, error } = await admin
     .from('photos')
     .insert({ session_id: sessionId, url, thumbnail_url: thumbnailUrl || null, name: name || null, sort_order: sortOrder })
@@ -37,7 +36,6 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error && (error.code === '42703' || error.message?.includes('column'))) {
-    // name column doesn't exist yet — insert without it
     ;({ data, error } = await admin
       .from('photos')
       .insert({ session_id: sessionId, url, thumbnail_url: thumbnailUrl || null, sort_order: sortOrder })
@@ -54,43 +52,57 @@ export async function DELETE(req: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
-  const { photoId } = await req.json()
-  if (!photoId) return Response.json({ error: 'חסר photoId' }, { status: 400 })
+  const body = await req.json()
+  // Support both single { photoId } and batch { photoIds: string[] }
+  const photoIds: string[] = body.photoIds
+    ? body.photoIds
+    : body.photoId
+      ? [body.photoId]
+      : []
+
+  if (photoIds.length === 0) return Response.json({ error: 'חסר photoId' }, { status: 400 })
 
   const admin = createAdminClient()
 
-  // Verify the photo belongs to this photographer's portfolio
-  const { data: photo } = await admin
+  const { data: photos } = await admin
     .from('photos')
-    .select('id, url, session_id, sessions(portfolio_id, portfolios(photographer_id, photographers(email)))')
-    .eq('id', photoId)
-    .maybeSingle()
+    .select('id, url')
+    .in('id', photoIds)
 
-  if (!photo) return Response.json({ error: 'תמונה לא נמצאה' }, { status: 404 })
+  if (!photos?.length) return Response.json({ error: 'תמונות לא נמצאו' }, { status: 404 })
 
-  // Check no active selections on this photo
+  // Filter out photos with client selections
   const { data: selections } = await admin
     .from('selections')
-    .select('id')
-    .eq('photo_id', photoId)
-    .limit(1)
+    .select('photo_id')
+    .in('photo_id', photoIds)
 
-  if (selections && selections.length > 0) {
-    return Response.json({ error: 'התמונה נבחרה על ידי הלקוחה ולא ניתן למחוק אותה' }, { status: 409 })
+  const selectedSet = new Set(selections?.map(s => s.photo_id) ?? [])
+  const deletable = photos.filter(p => !selectedSet.has(p.id))
+  const skipped = photos.length - deletable.length
+
+  if (deletable.length === 0) {
+    return Response.json({
+      error: 'כל התמונות שנבחרו נבחרו ע"י הלקוחה ולא ניתן למחוק אותן',
+      skipped,
+    }, { status: 409 })
   }
 
-  // Delete from DB
-  const { error } = await admin.from('photos').delete().eq('id', photoId)
+  const deletableIds = deletable.map(p => p.id)
+  const { error } = await admin.from('photos').delete().in('id', deletableIds)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  // Try to delete from Cloudinary (best-effort)
+  // Batch delete from Cloudinary
   try {
-    const urlPath = photo.url
-    const match = urlPath.match(/\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/)
-    if (match) {
-      await cloudinary.uploader.destroy(match[1])
+    const publicIds = deletable.map(p => {
+      const m = p.url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/)
+      return m ? m[1] : null
+    }).filter(Boolean) as string[]
+
+    if (publicIds.length > 0) {
+      await cloudinary.api.delete_resources(publicIds)
     }
   } catch { /* ignore cloudinary errors */ }
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true, deleted: deletable.length, deletedIds: deletableIds, skipped })
 }
