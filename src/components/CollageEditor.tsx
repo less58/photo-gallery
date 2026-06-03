@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Upload, GripVertical, Plus, Save, ChevronRight, Trash2, Check } from 'lucide-react'
+import { X, Upload, GripVertical, Plus, Save, ChevronRight, Check } from 'lucide-react'
 import type { Collage, CollageCell, CollageTemplate } from '@/lib/types'
+import { useToast } from './Toast'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EDITOR_W = 800
@@ -35,9 +36,14 @@ type FilledCell = AbsCell & { photo_url: string | null; pan_x: number; pan_y: nu
 type DragOp =
   | { type: 'draw'; x0: number; y0: number }
   | { type: 'move'; id: string; origX: number; origY: number; mx0: number; my0: number }
-  | { type: 'resize'; id: string; handle: 'se' | 'e' | 's'; origCell: AbsCell; mx0: number; my0: number }
+  | { type: 'resize'; id: string; handle: 'n'|'s'|'e'|'w'|'nw'|'ne'|'sw'|'se'; origCell: AbsCell; mx0: number; my0: number }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+function findSnapVal(val: number, snaps: number[]): { snapped: number; guide: number | null } {
+  let best: number | null = null, bestDist = SNAP + 1
+  for (const s of snaps) { const d = Math.abs(val - s); if (d < bestDist) { bestDist = d; best = s } }
+  return best !== null ? { snapped: best, guide: best } : { snapped: val, guide: null }
+}
 function uid() { return Math.random().toString(36).slice(2, 10) }
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)) }
 
@@ -85,7 +91,7 @@ async function renderCollageCanvas(collage: Collage): Promise<HTMLCanvasElement>
   canvas.width = RENDER_W
   canvas.height = RENDER_H
   const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = '#000'
+  ctx.fillStyle = collage.bg_color || '#000000'
   ctx.fillRect(0, 0, RENDER_W, RENDER_H)
 
   for (const cell of collage.cells) {
@@ -153,9 +159,13 @@ function PresetPreview({ cells, selected }: { cells: NCell[]; selected: boolean 
 }
 
 // ─── Collage preview (CSS-based, no canvas) ───────────────────────────────────
-export function CollagePreview({ collage, className }: { collage: Collage; className?: string }) {
+export function CollagePreview({ collage, className, style, onClick }: { collage: Collage; className?: string; style?: React.CSSProperties; onClick?: () => void }) {
   return (
-    <div className={`relative bg-black overflow-hidden ${className ?? ''}`} style={{ aspectRatio: '3/2' }}>
+    <div
+      className={`relative overflow-hidden ${className ?? ''}`}
+      style={{ aspectRatio: '3/2', background: collage.bg_color || '#000000', cursor: onClick ? 'pointer' : undefined, ...style }}
+      onClick={onClick}
+    >
       {collage.cells.map((cell, i) => (
         <div key={i} className="absolute overflow-hidden" style={{
           left: `${cell.x * 100}%`, top: `${cell.y * 100}%`,
@@ -194,6 +204,7 @@ type Props = {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function CollageEditor({ portfolioId, color, collage, onSave, onClose }: Props) {
+  const toast = useToast()
   type Step = 'template' | 'layout' | 'fill'
   const [step, setStep] = useState<Step>(collage ? 'fill' : 'template')
   const [fromCustom, setFromCustom] = useState(false)
@@ -229,9 +240,11 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
   const [borderEnabled, setBorderEnabled] = useState(collage?.border_enabled ?? false)
   const [borderColor, setBorderColor] = useState(collage?.border_color ?? '#ffffff')
   const [borderWidth, setBorderWidth] = useState(collage?.border_width ?? 4)
+  const [bgColor, setBgColor] = useState(collage?.bg_color ?? '#000000')
+  const [replaceCellId, setReplaceCellId] = useState<string | null>(null)
   const fillAllInputRef = useRef<HTMLInputElement>(null)
   const fillEditorRef = useRef<HTMLDivElement>(null)
-  const panDragRef = useRef<{ cellId: string; mx0: number; my0: number; px0: number; py0: number } | null>(null)
+  const panDragRef = useRef<{ cellId: string; mx0: number; my0: number; px0: number; py0: number; hasMoved: boolean } | null>(null)
   const [cellDragSource, setCellDragSource] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
 
@@ -320,7 +333,7 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
     e.preventDefault()
   }
 
-  function onResizeMouseDown(e: React.MouseEvent, cell: AbsCell, handle: 'se' | 'e' | 's') {
+  function onResizeMouseDown(e: React.MouseEvent, cell: AbsCell, handle: 'n'|'s'|'e'|'w'|'nw'|'ne'|'sw'|'se') {
     e.stopPropagation()
     const [mx, my] = getEditorXY(e)
     layoutDragRef.current = { type: 'resize', id: cell.id, handle, origCell: { ...cell }, mx0: mx, my0: my }
@@ -347,14 +360,32 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
       })
     } else if (op.type === 'resize') {
       const dx = mx - op.mx0, dy = my - op.my0
-      setLayoutCells(prev => prev.map(c => {
-        if (c.id !== op.id) return c
-        const oc = op.origCell
-        let newW = oc.w, newH = oc.h
-        if (op.handle === 'se' || op.handle === 'e') newW = clamp(oc.w + dx, MIN_CELL, EDITOR_W - oc.x)
-        if (op.handle === 'se' || op.handle === 's') newH = clamp(oc.h + dy, MIN_CELL, EDITOR_H - oc.y)
-        return { ...c, w: newW, h: newH }
-      }))
+      const h = op.handle, oc = op.origCell
+      setLayoutCells(prev => {
+        let newX = oc.x, newY = oc.y, newW = oc.w, newH = oc.h
+        // East
+        if (h === 'e' || h === 'se' || h === 'ne') newW = clamp(oc.w + dx, MIN_CELL, EDITOR_W - oc.x)
+        // West
+        if (h === 'w' || h === 'sw' || h === 'nw') { newX = clamp(oc.x + dx, 0, oc.x + oc.w - MIN_CELL); newW = (oc.x + oc.w) - newX }
+        // South
+        if (h === 's' || h === 'se' || h === 'sw') newH = clamp(oc.h + dy, MIN_CELL, EDITOR_H - oc.y)
+        // North
+        if (h === 'n' || h === 'ne' || h === 'nw') { newY = clamp(oc.y + dy, 0, oc.y + oc.h - MIN_CELL); newH = (oc.y + oc.h) - newY }
+
+        // Snap moving edges
+        const others = prev.filter(c => c.id !== op.id)
+        const hS = [0, EDITOR_H / 2, EDITOR_H, ...others.flatMap(c => [c.y, c.y + c.h / 2, c.y + c.h])]
+        const vS = [0, EDITOR_W / 2, EDITOR_W, ...others.flatMap(c => [c.x, c.x + c.w / 2, c.x + c.w])]
+        const hG: number[] = [], vG: number[] = []
+
+        if (h === 'e' || h === 'se' || h === 'ne') { const r = findSnapVal(newX + newW, vS); if (r.guide !== null) { newW = Math.max(MIN_CELL, r.snapped - newX); vG.push(r.guide) } }
+        if (h === 'w' || h === 'sw' || h === 'nw') { const re = newX + newW; const r = findSnapVal(newX, vS); if (r.guide !== null) { newX = r.snapped; newW = Math.max(MIN_CELL, re - newX); vG.push(r.guide) } }
+        if (h === 's' || h === 'se' || h === 'sw') { const r = findSnapVal(newY + newH, hS); if (r.guide !== null) { newH = Math.max(MIN_CELL, r.snapped - newY); hG.push(r.guide) } }
+        if (h === 'n' || h === 'ne' || h === 'nw') { const be = newY + newH; const r = findSnapVal(newY, hS); if (r.guide !== null) { newY = r.snapped; newH = Math.max(MIN_CELL, be - newY); hG.push(r.guide) } }
+
+        setGuides({ h: hG, v: vG })
+        return prev.map(c => c.id !== op.id ? c : { ...c, x: newX, y: newY, w: Math.max(MIN_CELL, newW), h: Math.max(MIN_CELL, newH) })
+      })
     }
   }, [layoutCells])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -424,8 +455,19 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
 
   async function uploadAllFiles(files: FileList) {
     setHasEdited(true)
+    const allArr = Array.from(files)
+    const emptyCells = filledCells.filter(c => !c.photo_url)
+
+    if (emptyCells.length === 0) {
+      toast('כל התאים כבר מלאים. לחץ על תמונה קיימת כדי להחליפה.', 'error')
+      return
+    }
+    if (allArr.length > emptyCells.length) {
+      toast(`${allArr.length} קבצים נבחרו אך רק ${emptyCells.length} תאים פנויים — ${allArr.length - emptyCells.length} קבצים יתעלמו`)
+    }
+
     setUploadingAll(true)
-    const arr = Array.from(files).slice(0, filledCells.length)
+    const arr = allArr.slice(0, emptyCells.length)
     const total = arr.length
     setUploadAllProgress({ done: 0, total })
 
@@ -444,13 +486,30 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
           return { i, url: null }
         })
     }))
+    const successful = results.filter(r => r.url).length
+    const failed = results.length - successful
+
+    // Map results to empty slots (in order)
     setFilledCells(prev => {
       const next = [...prev]
-      for (const { i, url } of results) {
-        if (url && i < next.length) next[i] = { ...next[i], photo_url: url, pan_x: 0, pan_y: 0 }
+      let emptyIdx = 0
+      for (const { url } of results) {
+        // find next empty slot
+        while (emptyIdx < next.length && next[emptyIdx].photo_url) emptyIdx++
+        if (url && emptyIdx < next.length) {
+          next[emptyIdx] = { ...next[emptyIdx], photo_url: url, pan_x: 0, pan_y: 0 }
+          emptyIdx++
+        }
       }
       return next
     })
+
+    if (failed > 0) {
+      toast(`${successful}/${results.length} תמונות הועלו. ${failed} נכשלו — ייתכן שהקובץ גדול מדי (מקסימום 50MB) או פורמט לא נתמך`, 'error')
+    } else if (successful > 0) {
+      toast(`${successful} תמונות הועלו בהצלחה`)
+    }
+
     setUploadingAll(false)
     setUploadAllProgress(null)
   }
@@ -463,17 +522,26 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
   function onFillEditorMouseMove(e: React.MouseEvent) {
     const pd = panDragRef.current
     if (!pd) return
-    const cell = filledCells.find(c => c.id === pd.cellId)
-    if (!cell) return
     const dx = e.clientX - pd.mx0
     const dy = e.clientY - pd.my0
-    const newPx = clamp(pd.px0 + dx / (cell.w / 2), -1, 1)
-    const newPy = clamp(pd.py0 + dy / (cell.h / 2), -1, 1)
-    setFilledCells(prev => prev.map(c => c.id === pd.cellId ? { ...c, pan_x: newPx, pan_y: newPy } : c))
+    if (!pd.hasMoved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) pd.hasMoved = true
+    if (!pd.hasMoved) return
+    const cell = filledCells.find(c => c.id === pd.cellId)
+    if (!cell) return
+    setFilledCells(prev => prev.map(c => c.id === pd.cellId ? {
+      ...c,
+      pan_x: clamp(pd.px0 + dx / (cell.w / 2), -1, 1),
+      pan_y: clamp(pd.py0 + dy / (cell.h / 2), -1, 1),
+    } : c))
   }
 
   function onFillEditorMouseUp() {
+    const pd = panDragRef.current
     panDragRef.current = null
+    if (pd && !pd.hasMoved) {
+      // click (not drag) on filled photo → open replace picker
+      setReplaceCellId(pd.cellId)
+    }
   }
 
   // Drag-to-swap
@@ -500,14 +568,15 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
         photo_url: c.photo_url, pan_x: c.pan_x, pan_y: c.pan_y,
       }))
 
-      const payload = { portfolioId, name: collageName, cells, border_enabled: borderEnabled, border_color: borderColor, border_width: borderWidth }
+      const sharedFields = { name: collageName, cells, border_enabled: borderEnabled, border_color: borderColor, border_width: borderWidth, bg_color: bgColor }
+      const payload = { portfolioId, ...sharedFields }
 
       let res: Response
       if (collage?.id) {
         res = await fetch(`/api/dashboard/collage/${collage.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: collageName, cells, border_enabled: borderEnabled, border_color: borderColor, border_width: borderWidth }),
+          body: JSON.stringify(sharedFields),
         })
       } else {
         res = await fetch('/api/dashboard/collages', {
@@ -638,16 +707,18 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
                       className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
                       <X size={10} className="text-white" />
                     </button>
-                    {/* Resize handles */}
-                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'e')}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-8 rounded-l bg-indigo-400 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div onMouseDown={e => onResizeMouseDown(e, cell, 's')}
-                      className="absolute bottom-0 left-1/2 -translate-x-1/2 h-3 w-8 rounded-t bg-indigo-400 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'se')}
-                      className="absolute bottom-0 right-0 w-4 h-4 rounded-tl bg-indigo-400 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity" />
-                    {/* Size label */}
-                    <span className="absolute bottom-1 left-1 text-[10px] text-indigo-200/70 pointer-events-none select-none">
-                      {Math.round(cell.w / EDITOR_W * 100)}×{Math.round(cell.h / EDITOR_H * 100)}
+                    {/* Resize handles — 8 directions */}
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'n')} className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-2.5 rounded-b bg-indigo-400 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 's')} className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-2.5 rounded-t bg-indigo-400 cursor-ns-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'e')} className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-8 rounded-l bg-indigo-400 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'w')} className="absolute left-0 top-1/2 -translate-y-1/2 w-2.5 h-8 rounded-r bg-indigo-400 cursor-ew-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'nw')} className="absolute top-0 left-0 w-4 h-4 rounded-br bg-indigo-400 cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'ne')} className="absolute top-0 right-0 w-4 h-4 rounded-bl bg-indigo-400 cursor-ne-resize opacity-0 group-hover:opacity-100 transition-opacity z-[5]" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'sw')} className="absolute bottom-0 left-0 w-4 h-4 rounded-tr bg-indigo-400 cursor-sw-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    <div onMouseDown={e => onResizeMouseDown(e, cell, 'se')} className="absolute bottom-0 right-0 w-4 h-4 rounded-tl bg-indigo-400 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                    {/* Dimension label */}
+                    <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 text-[10px] text-indigo-200/80 pointer-events-none select-none whitespace-nowrap bg-indigo-900/40 px-1 rounded">
+                      {Math.round(cell.w / EDITOR_W * 100)}% × {Math.round(cell.h / EDITOR_H * 100)}%
                     </span>
                   </div>
                 ))}
@@ -738,8 +809,8 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
               {/* Collage canvas */}
               <div
                 ref={fillEditorRef}
-                className="relative bg-black overflow-hidden rounded-xl select-none"
-                style={{ width: EDITOR_W, height: EDITOR_H }}
+                className="relative overflow-hidden rounded-xl select-none"
+                style={{ width: EDITOR_W, height: EDITOR_H, background: bgColor }}
                 onMouseMove={onFillEditorMouseMove}
                 onMouseUp={onFillEditorMouseUp}
                 onMouseLeave={onFillEditorMouseUp}
@@ -756,8 +827,10 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
                     onUpload={file => uploadToCell(cell.id, file)}
                     onRemove={() => removePhoto(cell.id)}
                     onPanStart={(mx, my) => {
-                      panDragRef.current = { cellId: cell.id, mx0: mx, my0: my, px0: cell.pan_x, py0: cell.pan_y }
+                      panDragRef.current = { cellId: cell.id, mx0: mx, my0: my, px0: cell.pan_x, py0: cell.pan_y, hasMoved: false }
                     }}
+                    replaceTrigger={replaceCellId === cell.id}
+                    onReplaceHandled={() => setReplaceCellId(null)}
                     onDragStart={() => setCellDragSource(cell.id)}
                     onDragEnter={() => setDropTarget(cell.id)}
                     onDragLeave={() => setDropTarget(prev => prev === cell.id ? null : prev)}
@@ -776,8 +849,14 @@ export default function CollageEditor({ portfolioId, color, collage, onSave, onC
                 ))}
               </div>
 
-              {/* Border controls */}
+              {/* Background + Border controls */}
               <div className="flex items-center gap-4 p-3 rounded-xl bg-stone-50 border border-stone-200 flex-wrap">
+                <label className="flex items-center gap-2 text-sm text-stone-600">
+                  צבע רקע
+                  <input type="color" value={bgColor} onChange={e => setBgColor(e.target.value)}
+                    className="w-8 h-7 rounded border border-stone-300 cursor-pointer p-0.5" />
+                </label>
+                <div className="w-px h-5 bg-stone-200" />
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={borderEnabled} onChange={e => setBorderEnabled(e.target.checked)}
                     className="w-4 h-4 rounded accent-indigo-500" />
@@ -844,8 +923,10 @@ type FillCellProps = {
   total: number
   uploading: boolean
   isDragTarget: boolean
+  replaceTrigger: boolean
   onUpload: (f: File) => void
   onRemove: () => void
+  onReplaceHandled: () => void
   onPanStart: (mx: number, my: number) => void
   onDragStart: () => void
   onDragEnter: () => void
@@ -853,10 +934,17 @@ type FillCellProps = {
   onDrop: () => void
 }
 
-function FillCellItem({ cell, idx, total, uploading, isDragTarget, onUpload, onRemove, onPanStart, onDragStart, onDragEnter, onDragLeave, onDrop }: FillCellProps) {
+function FillCellItem({ cell, idx, total, uploading, isDragTarget, replaceTrigger, onUpload, onRemove, onReplaceHandled, onPanStart, onDragStart, onDragEnter, onDragLeave, onDrop }: FillCellProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const posX = `${(cell.pan_x + 1) / 2 * 100}%`
   const posY = `${(cell.pan_y + 1) / 2 * 100}%`
+
+  // When replaceTrigger fires (click on filled photo) → open file picker
+  useEffect(() => {
+    if (!replaceTrigger || !cell.photo_url) return
+    fileRef.current?.click()
+    onReplaceHandled()
+  }, [replaceTrigger, cell.photo_url, onReplaceHandled])
 
   return (
     <div
@@ -874,9 +962,22 @@ function FillCellItem({ cell, idx, total, uploading, isDragTarget, onUpload, onR
             className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
             style={{ objectPosition: `${posX} ${posY}` }} />
 
-          {/* Pan overlay */}
-          <div className="absolute inset-0" style={{ cursor: 'grab' }}
-            onMouseDown={e => { onPanStart(e.clientX, e.clientY); e.preventDefault() }} />
+          {/* Pan overlay — click=replace, drag=pan */}
+          <div
+            className="absolute inset-0 group/pan"
+            style={{ cursor: 'grab' }}
+            title="גרור להזזה · לחץ להחלפת תמונה"
+            onMouseDown={e => {
+              if ((e.target as HTMLElement).closest('button, [draggable]')) return
+              onPanStart(e.clientX, e.clientY)
+              e.preventDefault()
+            }}
+          >
+            {/* Hover hint */}
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover/pan:opacity-100 transition-opacity pointer-events-none z-10">
+              לחץ להחלפה · גרור להזזה
+            </div>
+          </div>
 
           {/* Remove */}
           <button type="button" onClick={e => { e.stopPropagation(); onRemove() }}

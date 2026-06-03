@@ -63,6 +63,8 @@ export default function GalleryClient({
 
   // Album viewer state
   const [viewingAlbum, setViewingAlbum] = useState<Album | null>(null)
+  // Collage fullscreen viewer
+  const [viewingCollage, setViewingCollage] = useState<Collage | null>(null)
 
   // Collage download state
   const [downloadingCollageId, setDownloadingCollageId] = useState<string | null>(null)
@@ -584,7 +586,7 @@ export default function GalleryClient({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {collages.map(collage => (
                 <div key={collage.id} className="rounded-2xl overflow-hidden bg-stone-900 border border-white/10">
-                  <CollagePreview collage={collage} className="w-full" />
+                  <CollagePreview collage={collage} className="w-full" onClick={() => setViewingCollage(collage)} />
                   <div className="flex items-center justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white">{collage.name}</p>
@@ -643,6 +645,32 @@ export default function GalleryClient({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Collage fullscreen viewer */}
+      {viewingCollage && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={() => setViewingCollage(null)}>
+          <div className="flex items-center justify-between px-6 py-3 shrink-0 bg-black/60" onClick={e => e.stopPropagation()}>
+            <p className="text-white font-medium">{viewingCollage.name}</p>
+            <div className="flex items-center gap-3">
+              <button type="button"
+                onClick={() => handleDownloadCollage(viewingCollage)}
+                disabled={downloadingCollageId === viewingCollage.id}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+                style={{ background: color, color: '#fff' }}>
+                {downloadingCollageId === viewingCollage.id
+                  ? <><Loader2 size={12} className="animate-spin" /> מוריד...</>
+                  : <><Download size={12} /> הורד</>}
+              </button>
+              <button type="button" onClick={() => setViewingCollage(null)} className="text-white/50 hover:text-white p-1 transition">
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+            <CollagePreview collage={viewingCollage} className="max-h-full max-w-full rounded-xl shadow-2xl" style={{ width: 'min(90vw, 900px)' }} />
+          </div>
         </div>
       )}
 

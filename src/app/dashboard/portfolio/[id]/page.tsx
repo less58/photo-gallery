@@ -64,6 +64,7 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
         watermark_rotation: (photographer.watermark_rotation as number) ?? 0,
         watermark_image_opacity: (photographer.watermark_image_opacity as number) ?? 20,
         send_client_emails: (photographer.send_client_emails as boolean) ?? false,
+        enable_collages: (photographer.enable_collages as boolean) ?? true,
       }}
     />
   )

@@ -20,6 +20,7 @@ type Photographer = {
   watermark_x?: number | null; watermark_y?: number | null
   watermark_rotation?: number | null; watermark_image_opacity?: number | null
   send_client_emails: boolean
+  enable_collages?: boolean | null
 }
 type Props = {
   portfolio: Portfolio
@@ -713,7 +714,13 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
       {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-5 w-fit flex-wrap">
-        {([['photos', 'תמונות'], ['selected', 'נבחרו'], ['notes', 'הודעות'], ['collages', 'קולאג׳ים'], ['albums', 'אלבומים']] as [Tab, string][]).map(([t, label]) => (
+        {([
+          ['photos', 'תמונות'],
+          ['selected', 'נבחרו'],
+          ['notes', 'הודעות'],
+          ...(photographer.enable_collages !== false ? [['collages', 'קולאג׳ים']] : []),
+          ['albums', 'אלבומים'],
+        ] as [Tab, string][]).map(([t, label]) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
             style={tab === t

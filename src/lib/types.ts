@@ -88,5 +88,6 @@ export type Collage = {
   border_enabled: boolean
   border_color: string
   border_width: number
+  bg_color: string
   created_at: string
 }
