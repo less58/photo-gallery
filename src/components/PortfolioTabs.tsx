@@ -1039,8 +1039,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
       {/* ── Notes tab ── */}
       {tab === 'notes' && (
-        <div className="bg-white rounded-xl border border-stone-200">
-          <div className="sticky top-0 z-10 px-5 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between rounded-t-xl">
+        <div
+          className="bg-white rounded-xl border border-stone-200 overflow-hidden flex flex-col"
+          style={{ height: 'calc(100vh - 320px)', minHeight: '420px' }}
+        >
+          <div className="shrink-0 px-5 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">הודעות עם הלקוחה</h3>
             <Link
               href={`/dashboard/messages?portfolio=${portfolio.id}`}
@@ -1050,12 +1053,14 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               מעבר לצאט
             </Link>
           </div>
-          <NoteChat
-            fetchUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}
-            postUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}
-            mySender="photographer"
-            brandColor={color}
-          />
+          <div className="flex-1 overflow-hidden">
+            <NoteChat
+              fetchUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}
+              postUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}
+              mySender="photographer"
+              brandColor={color}
+            />
+          </div>
         </div>
       )}
 

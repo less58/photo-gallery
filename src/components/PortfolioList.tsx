@@ -32,17 +32,22 @@ export default function PortfolioList({
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
-      .then(r => r.json())
-      .then(data => {
-        if (!Array.isArray(data)) return
-        const counts: Record<string, number> = {}
-        data.forEach((c: { portfolioId: string; unreadCount: number }) => {
-          if (c.unreadCount > 0) counts[c.portfolioId] = c.unreadCount
+    function fetchUnread() {
+      fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => {
+          if (!Array.isArray(data)) return
+          const counts: Record<string, number> = {}
+          data.forEach((c: { portfolioId: string; unreadCount: number }) => {
+            if (c.unreadCount > 0) counts[c.portfolioId] = c.unreadCount
+          })
+          setUnreadCounts(counts)
         })
-        setUnreadCounts(counts)
-      })
-      .catch(() => {})
+        .catch(() => {})
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 30000)
+    return () => clearInterval(interval)
   }, [])
   const [deleting, setDeleting] = useState<string | null>(null)
   const [togglingDone, setTogglingDone] = useState<string | null>(null)

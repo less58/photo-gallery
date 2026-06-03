@@ -509,27 +509,29 @@ export default function GalleryClient({
       )}
 
       {/* ── Chat floating button ── */}
-      <button
-        type="button"
-        onClick={() => {
-          if (!showChat) setUnreadFromPhotographer(0)
-          setShowChat(v => !v)
-        }}
-        className="fixed bottom-5 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-transform active:scale-95 relative"
-        style={{ background: color }}
-        title="הודעות לצלמת"
-      >
-        {showChat ? <X size={20} className="text-white" /> : <MessageCircle size={20} className="text-white" />}
-        {!showChat && unreadFromPhotographer > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-white text-[10px] font-bold px-0.5">
-            {unreadFromPhotographer}
-          </span>
-        )}
-      </button>
+      <div className="fixed bottom-5 right-4 z-40">
+        <button
+          type="button"
+          onClick={() => {
+            if (!showChat) setUnreadFromPhotographer(0)
+            setShowChat(v => !v)
+          }}
+          className="relative w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-transform active:scale-95"
+          style={{ background: color }}
+          title="הודעות לצלמת"
+        >
+          {showChat ? <X size={20} className="text-white" /> : <MessageCircle size={20} className="text-white" />}
+          {!showChat && unreadFromPhotographer > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-white text-[10px] font-bold px-0.5">
+              {unreadFromPhotographer}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* ── Chat panel ── */}
       {showChat && (
-        <div className="fixed bottom-20 left-4 z-40 w-80 bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden"
+        <div className="fixed bottom-20 right-4 z-40 w-80 bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden"
           style={{ maxHeight: '70vh' }}>
           <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between"
             style={{ background: color + '12' }}>
