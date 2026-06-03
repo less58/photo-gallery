@@ -23,7 +23,9 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Pr
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Fetch + poll
   useEffect(() => {
     let alive = true
 
@@ -34,8 +36,7 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Pr
           if (!alive || !Array.isArray(data)) return
           setNotes(prev => {
             const lastPrev = prev[prev.length - 1]?.id
-            const lastNew = data[data.length - 1]?.id
-            // Only update state if there are actually new messages
+            const lastNew = (data as Note[])[data.length - 1]?.id
             if (!isFirstLoad && prev.length === data.length && lastPrev === lastNew) return prev
             return data as Note[]
           })
@@ -45,16 +46,28 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Pr
 
     fetchNotes(true)
     const interval = setInterval(() => fetchNotes(false), 8000)
-
     return () => { alive = false; clearInterval(interval) }
   }, [fetchUrl])
 
+  // Mark as read when photographer opens chat
+  useEffect(() => {
+    if (mySender !== 'photographer') return
+    fetch(fetchUrl, { method: 'PATCH' }).catch(() => {})
+  }, [mySender, fetchUrl])
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [notes])
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault()
+  function autoResize() {
+    const ta = textareaRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
+  }
+
+  async function handleSend() {
     if (!message.trim() || sending) return
     setSending(true)
     try {
@@ -64,16 +77,20 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Pr
         body: JSON.stringify({ message: message.trim() }),
       })
       const data = await res.json()
-      if (res.ok && data.id) { setNotes(prev => [...prev, data as Note]); setMessage('') }
+      if (res.ok && data.id) {
+        setNotes(prev => [...prev, data as Note])
+        setMessage('')
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      }
     } finally {
       setSending(false)
     }
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Messages */}
-      <div className="overflow-y-auto px-4 py-3 space-y-2.5" style={{ minHeight: 220, maxHeight: 400 }}>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5" style={{ minHeight: 160 }}>
         {loading && <p className="text-center text-stone-400 text-xs py-6">טוענת...</p>}
         {!loading && notes.length === 0 && (
           <div className="text-center py-8">
@@ -107,20 +124,33 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Pr
       </div>
 
       {/* Input */}
-      <form onSubmit={send} className="border-t border-stone-100 p-3 flex gap-2 items-center">
-        <input
+      <form
+        onSubmit={e => { e.preventDefault(); void handleSend() }}
+        className="border-t border-stone-100 p-3 flex gap-2 items-end"
+      >
+        <textarea
+          ref={textareaRef}
           value={message}
-          onChange={e => setMessage(e.target.value)}
-          placeholder="כתבי הודעה..."
-          className="flex-1 px-3 py-2 rounded-full border border-stone-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 transition"
-          style={{ color: '#1c1917', WebkitTextFillColor: '#1c1917' }}
+          onChange={e => { setMessage(e.target.value); autoResize() }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend() }
+          }}
+          placeholder="כתבי הודעה... (Enter לשליחה)"
+          className="flex-1 px-3 py-2 rounded-xl border border-stone-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 transition resize-none overflow-hidden leading-relaxed"
+          style={{
+            color: '#1c1917',
+            WebkitTextFillColor: '#1c1917',
+            minHeight: '36px',
+            maxHeight: '120px',
+          }}
+          rows={1}
           disabled={sending}
           dir="auto"
         />
         <button
           type="submit"
           disabled={!message.trim() || sending}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-opacity disabled:opacity-40"
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-opacity disabled:opacity-40 mb-0.5"
           style={{ background: brandColor }}
         >
           <Send size={15} className="text-white" style={{ transform: 'scaleX(-1)' }} />

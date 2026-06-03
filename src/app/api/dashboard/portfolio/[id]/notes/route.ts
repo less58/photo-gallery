@@ -35,10 +35,27 @@ export async function POST(req: NextRequest, { params }: Params) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('portfolio_notes')
-    .insert({ portfolio_id: id, sender: 'photographer', message: message.trim() })
+    .insert({ portfolio_id: id, sender: 'photographer', message: message.trim(), read_by_photographer: true })
     .select('*')
     .single()
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)
+}
+
+export async function PATCH(_req: NextRequest, { params }: Params) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
+
+  const admin = createAdminClient()
+  await admin
+    .from('portfolio_notes')
+    .update({ read_by_photographer: true })
+    .eq('portfolio_id', id)
+    .eq('sender', 'client')
+    .eq('read_by_photographer', false)
+
+  return Response.json({ ok: true })
 }

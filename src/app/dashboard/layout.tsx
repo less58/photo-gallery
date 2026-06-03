@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
+import MessagesNavIcon from '@/components/MessagesNavIcon'
 import { Settings, Home, Plus, Snowflake } from 'lucide-react'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -59,6 +60,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <Plus size={15} /> תיק חדש
               </Link>
             )}
+            <MessagesNavIcon />
             <Link href="/dashboard/settings"
               className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
               title="הגדרות">

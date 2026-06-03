@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle } from 'lucide-react'
@@ -29,6 +29,21 @@ export default function PortfolioList({
   const toast = useToast()
   const { jobs } = useUpload()
   const [portfolios, setPortfolios] = useState(initial)
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => {
+        if (!Array.isArray(data)) return
+        const counts: Record<string, number> = {}
+        data.forEach((c: { portfolioId: string; unreadCount: number }) => {
+          if (c.unreadCount > 0) counts[c.portfolioId] = c.unreadCount
+        })
+        setUnreadCounts(counts)
+      })
+      .catch(() => {})
+  }, [])
   const [deleting, setDeleting] = useState<string | null>(null)
   const [togglingDone, setTogglingDone] = useState<string | null>(null)
 
@@ -160,6 +175,11 @@ export default function PortfolioList({
                     </h2>
                     {portfolio.is_done && (
                       <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">הושלם</span>
+                    )}
+                    {unreadCounts[portfolio.id] > 0 && (
+                      <span className="shrink-0 min-w-[18px] h-4.5 px-1 rounded-full flex items-center justify-center text-white text-[9px] font-bold bg-red-500">
+                        {unreadCounts[portfolio.id]}
+                      </span>
                     )}
                   </div>
                   <p className="text-stone-400 text-xs truncate mb-3" dir="ltr">{portfolio.client_email}</p>
