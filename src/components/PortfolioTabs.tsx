@@ -699,25 +699,40 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-white text-sm font-medium">
-                    {selectedPhotoIds.size > 0 ? `${selectedPhotoIds.size} נבחרו` : 'לחצי על תמונות לבחירה'}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {selectedPhotoIds.size > 0 && (
-                      <button type="button" onClick={() => void bulkDeleteSelected()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition">
-                        <Trash2 size={12} /> מחק {selectedPhotoIds.size}
-                      </button>
+              ) : (() => {
+                const blocked = [...selectedPhotoIds].filter(id => clientSelectedPhotoIds.has(id)).length
+                const deletable = selectedPhotoIds.size - blocked
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-white text-sm font-medium">
+                        {selectedPhotoIds.size > 0 ? `${selectedPhotoIds.size} נבחרו` : 'לחצי על תמונות לבחירה'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {selectedPhotoIds.size > 0 && (
+                          <button type="button" onClick={() => void bulkDeleteSelected()}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition disabled:opacity-40"
+                            disabled={deletable === 0}>
+                            <Trash2 size={12} />
+                            {blocked > 0 ? `מחק ${deletable}` : `מחק ${selectedPhotoIds.size}`}
+                          </button>
+                        )}
+                        <button type="button" onClick={exitSelectionMode}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition">
+                          <X size={13} /> ביטול
+                        </button>
+                      </div>
+                    </div>
+                    {blocked > 0 && selectedPhotoIds.size > 0 && (
+                      <p className="text-amber-300 text-[11px] leading-tight">
+                        ⚠ {blocked === selectedPhotoIds.size
+                          ? 'כל התמונות שנבחרו נבחרו ע"י הלקוחה ולא ניתן למחוק אותן'
+                          : `${blocked} תמונות נבחרו ע"י הלקוחה ולא יימחקו`}
+                      </p>
                     )}
-                    <button type="button" onClick={exitSelectionMode}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition">
-                      <X size={13} /> ביטול
-                    </button>
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
           ) : (
             /* ── Normal header ── */
