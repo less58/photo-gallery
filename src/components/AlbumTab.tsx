@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Upload, Trash2, BookOpen, Loader2, Eye } from 'lucide-react'
+import { Upload, Trash2, BookOpen, Loader2, Eye, Images, Pencil, Check, X } from 'lucide-react'
 import type { Album } from '@/lib/types'
 import AlbumViewer from './AlbumViewer'
+import AlbumImageEditor from './AlbumImageEditor'
 
-const CHUNK_SIZE = 6 * 1024 * 1024 // 6 MB per chunk — within Cloudinary limits
+const CHUNK_SIZE = 6 * 1024 * 1024
 
 type SignData = { signature: string; timestamp: number; apiKey: string; cloudName: string; folder: string }
 
@@ -16,7 +17,6 @@ async function uploadChunked(
 ): Promise<{ secure_url: string; pages: number }> {
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
   const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`
-
   let result: Record<string, unknown> = {}
 
   for (let i = 0; i < totalChunks; i++) {
@@ -45,16 +45,14 @@ async function uploadChunked(
 
     onProgress(Math.round(((i + 1) / totalChunks) * 100))
 
-    // Try to parse response (intermediate chunks may return partial JSON)
     let data: Record<string, unknown> = {}
-    try { data = await res.json() } catch { /* intermediate chunk with no JSON body */ }
+    try { data = await res.json() } catch { /* intermediate chunk */ }
 
     if (!res.ok && res.status !== 499) {
       const msg = (data?.error as Record<string, string>)?.message || `שגיאת Cloudinary (${res.status})`
       throw new Error(msg)
     }
-
-    if (data.secure_url) result = data  // final chunk
+    if (data.secure_url) result = data
   }
 
   if (!result.secure_url) throw new Error('לא התקבל URL מ-Cloudinary')
@@ -74,6 +72,10 @@ export default function AlbumTab({ portfolioId, color }: Props) {
   const [uploadStatus, setUploadStatus] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewingAlbum, setViewingAlbum] = useState<Album | null>(null)
+  const [showImageEditor, setShowImageEditor] = useState(false)
+  const [editingNameId, setEditingNameId] = useState<string | null>(null)
+  const [editingNameValue, setEditingNameValue] = useState('')
+  const [savingNameId, setSavingNameId] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export default function AlbumTab({ portfolioId, color }: Props) {
       .finally(() => setLoading(false))
   }, [portfolioId])
 
-  async function handleUpload(file: File) {
+  async function handlePdfUpload(file: File) {
     if (file.type !== 'application/pdf') {
       alert('יש להעלות קובץ PDF בלבד')
       return
@@ -93,21 +95,17 @@ export default function AlbumTab({ portfolioId, color }: Props) {
     setUploadPct(0)
     setUploadStatus('מאמת...')
     try {
-      const folder = `albums/${portfolioId}`
-
-      // Tiny request to get a Cloudinary signature — no file data, never 413
       const sigRes = await fetch('/api/cloudinary-sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder }),
+        body: JSON.stringify({ folder: `albums/${portfolioId}` }),
       })
       if (!sigRes.ok) throw new Error('שגיאת אימות — רענן את הדף ונסה שנית')
       const sig: SignData = await sigRes.json()
 
       const sizeMB = (file.size / 1024 / 1024).toFixed(1)
-      setUploadStatus(`מעלה ${sizeMB} MB ישירות ל-Cloudinary...`)
+      setUploadStatus(`מעלה ${sizeMB} MB...`)
 
-      // Upload directly from browser → Cloudinary in chunks (bypasses Vercel entirely)
       const uploadData = await uploadChunked(file, sig, pct => {
         setUploadPct(pct)
         setUploadStatus(`מעלה... ${pct}%`)
@@ -129,12 +127,30 @@ export default function AlbumTab({ portfolioId, color }: Props) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'שגיאה בהעלאה'
       alert(msg.includes('10 MB') || msg.includes('large') || msg.includes('413')
-        ? `הקובץ גדול מדי עבור חשבון Cloudinary הנוכחי. שדרגי את חשבון Cloudinary שלך ונסי שנית.\n\n(שגיאה: ${msg})`
+        ? `הקובץ גדול מדי. שדרגי את חשבון Cloudinary שלך ונסי שנית.\n\n(שגיאה: ${msg})`
         : msg)
     }
     setUploading(false)
     setUploadStatus('')
     setUploadPct(0)
+  }
+
+  async function handleImageAlbumSave(name: string, imageUrls: string[]) {
+    const saveRes = await fetch('/api/dashboard/albums', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        portfolioId,
+        name,
+        imageUrls,
+        pageCount: imageUrls.length,
+      }),
+    })
+    const album = await saveRes.json()
+    if (album.id) {
+      setAlbums(prev => [album, ...prev])
+      setShowImageEditor(false)
+    }
   }
 
   async function deleteAlbum(id: string) {
@@ -147,6 +163,29 @@ export default function AlbumTab({ portfolioId, color }: Props) {
     setDeletingId(null)
   }
 
+  async function saveAlbumName(id: string) {
+    const name = editingNameValue.trim()
+    if (!name) return
+    setSavingNameId(id)
+    try {
+      const res = await fetch(`/api/dashboard/album/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (res.ok) {
+        setAlbums(prev => prev.map(a => a.id === id ? { ...a, name } : a))
+        setEditingNameId(null)
+      }
+    } catch { /* ignore */ }
+    setSavingNameId(null)
+  }
+
+  function startEditName(album: Album) {
+    setEditingNameId(album.id)
+    setEditingNameValue(album.name)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-8 text-stone-400 text-sm">
@@ -157,33 +196,45 @@ export default function AlbumTab({ portfolioId, color }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-stone-500">
           {albums.length === 0 ? 'אין אלבומים עדיין' : `${albums.length} אלבומים`}
         </span>
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition disabled:opacity-60"
-          style={{ background: color }}
-        >
-          {uploading ? (
-            <><Loader2 size={14} className="animate-spin" /> {uploadStatus || 'מעלה...'}</>
-          ) : (
-            <><Upload size={14} /> העלה אלבום PDF</>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Image album button */}
+          <button
+            type="button"
+            onClick={() => setShowImageEditor(true)}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition disabled:opacity-60 border"
+            style={{ color, borderColor: color + '60', background: color + '10' }}
+          >
+            <Images size={14} /> אלבום תמונות
+          </button>
+          {/* PDF button */}
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white transition disabled:opacity-60"
+            style={{ background: color }}
+          >
+            {uploading
+              ? <><Loader2 size={14} className="animate-spin" /> {uploadStatus || 'מעלה...'}</>
+              : <><Upload size={14} /> העלה PDF</>
+            }
+          </button>
+        </div>
         <input
           ref={fileRef}
           type="file"
           accept="application/pdf"
           className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = '' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); e.target.value = '' }}
         />
       </div>
 
-      {/* Upload progress bar */}
+      {/* PDF upload progress */}
       {uploading && uploadPct > 0 && (
         <div className="rounded-xl bg-stone-100 px-4 py-3 space-y-1.5">
           <div className="flex items-center justify-between text-xs text-stone-500">
@@ -200,16 +251,31 @@ export default function AlbumTab({ portfolioId, color }: Props) {
       )}
 
       {albums.length === 0 ? (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="w-full py-12 rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center gap-3 text-stone-400 hover:border-stone-300 hover:text-stone-500 transition disabled:opacity-40"
-        >
+        <div className="w-full py-10 rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center gap-4 text-stone-400">
           <BookOpen size={32} strokeWidth={1.5} />
-          <span className="text-sm">העלה קובץ PDF של אלבום</span>
-          <span className="text-xs text-stone-300">העמוד הראשון יוצג כשער, השאר כפרישות כפולות</span>
-        </button>
+          <div className="text-center space-y-1">
+            <p className="text-sm font-medium">אין אלבומים עדיין</p>
+            <p className="text-xs text-stone-300">העלה PDF או צור אלבום מתמונות</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowImageEditor(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition border"
+              style={{ color, borderColor: color + '60', background: color + '10' }}
+            >
+              <Images size={14} /> אלבום תמונות
+            </button>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition"
+              style={{ background: color }}
+            >
+              <Upload size={14} /> העלה PDF
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="space-y-2">
           {albums.map(album => (
@@ -217,11 +283,47 @@ export default function AlbumTab({ portfolioId, color }: Props) {
               className="flex items-center gap-4 px-4 py-3 rounded-xl border border-stone-200 bg-stone-50 group hover:bg-stone-100 transition">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                 style={{ background: color + '18' }}>
-                <BookOpen size={18} style={{ color }} />
+                {album.image_urls?.length
+                  ? <Images size={18} style={{ color }} />
+                  : <BookOpen size={18} style={{ color }} />
+                }
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-stone-700 truncate">{album.name}</p>
-                <p className="text-xs text-stone-400">{album.page_count} עמודים</p>
+                {editingNameId === album.id ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={editingNameValue}
+                      onChange={e => setEditingNameValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveAlbumName(album.id)
+                        if (e.key === 'Escape') setEditingNameId(null)
+                      }}
+                      className="flex-1 text-sm font-medium text-stone-700 bg-white border border-stone-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
+                    />
+                    <button onClick={() => saveAlbumName(album.id)} disabled={!!savingNameId}
+                      className="text-green-500 hover:text-green-600 transition">
+                      {savingNameId === album.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                    </button>
+                    <button onClick={() => setEditingNameId(null)} className="text-stone-400 hover:text-stone-600 transition">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 group/name">
+                    <p className="text-sm font-medium text-stone-700 truncate">{album.name}</p>
+                    <button
+                      onClick={() => startEditName(album)}
+                      className="opacity-0 group-hover/name:opacity-100 text-stone-400 hover:text-stone-600 transition"
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-stone-400 mt-0.5">
+                  {album.image_urls?.length ?? album.page_count} תמונות
+                  {album.image_urls ? '' : ' · PDF'}
+                </p>
               </div>
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
@@ -249,6 +351,15 @@ export default function AlbumTab({ portfolioId, color }: Props) {
 
       {viewingAlbum && (
         <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} />
+      )}
+
+      {showImageEditor && (
+        <AlbumImageEditor
+          portfolioId={portfolioId}
+          color={color}
+          onSave={handleImageAlbumSave}
+          onClose={() => setShowImageEditor(false)}
+        />
       )}
     </div>
   )

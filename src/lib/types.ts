@@ -4,6 +4,7 @@ export type Photographer = {
   name: string
   logo_url: string | null
   brand_color: string
+  allow_album_download: boolean
   created_at: string
 }
 
@@ -75,7 +76,8 @@ export type Album = {
   id: string
   portfolio_id: string
   name: string
-  pdf_url: string
+  pdf_url: string | null
+  image_urls: string[] | null
   page_count: number
   created_at: string
 }

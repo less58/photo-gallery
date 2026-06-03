@@ -78,6 +78,7 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       isDone={(portfolio.is_done as boolean) ?? false}
       collages={(collagesData || []) as Collage[]}
       albums={(albumsData || []) as Album[]}
+      allowAlbumDownload={(ph.allow_album_download as boolean) === true}
     />
   )
 }

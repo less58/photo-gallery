@@ -27,6 +27,7 @@ type Props = {
   isDone?: boolean
   collages?: Collage[]
   albums?: Album[]
+  allowAlbumDownload?: boolean
 }
 
 const STATUS_COLOR: Record<SelectionStatus, string> = {
@@ -44,6 +45,7 @@ export default function GalleryClient({
   isDone = false,
   collages = [],
   albums = [],
+  allowAlbumDownload = false,
 }: Props) {
   const toast = useToast()
   const [activeSession, setActiveSession] = useState<string | 'all'>('all')
@@ -676,7 +678,7 @@ export default function GalleryClient({
 
       {/* Album viewer */}
       {viewingAlbum && (
-        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} />
+        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} allowDownload={allowAlbumDownload} />
       )}
 
       {/* ── Lightbox ── */}

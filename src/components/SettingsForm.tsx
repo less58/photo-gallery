@@ -26,6 +26,7 @@ type Photographer = {
   sender_display_name: string | null
   receive_selection_emails: boolean | null
   enable_collages: boolean | null
+  allow_album_download: boolean | null
 }
 
 export default function SettingsForm({ photographer: ph }: { photographer: Photographer }) {
@@ -61,6 +62,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const [emailBody, setEmailBody] = useState(ph.email_body || 'שלום,\n\nהתמונות שלך מוכנות לבחירה!\n\nבברכה,\n{photographer_name}')
   const [receiveSelectionEmails, setReceiveSelectionEmails] = useState(ph.receive_selection_emails !== false)
   const [enableCollages, setEnableCollages] = useState(ph.enable_collages !== false)
+  const [allowAlbumDownload, setAllowAlbumDownload] = useState(ph.allow_album_download === true)
   const [showKey, setShowKey] = useState(false)
   const [showGmailPass, setShowGmailPass] = useState(false)
   const [newPassword, setNewPassword] = useState('')
@@ -206,6 +208,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
         emailSubject, emailBody,
         receiveSelectionEmails,
         enableCollages,
+        allowAlbumDownload,
       }),
     })
     setSaving(false)
@@ -649,6 +652,18 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
           <div>
             <span className="text-sm text-stone-700">הצגת טאב קולאג׳ים</span>
             <p className="text-xs text-stone-400 mt-0.5">כשמופעל, יופיע טאב "קולאג׳ים" בתיקים שלך</p>
+          </div>
+        </label>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div className="relative shrink-0" onClick={() => setAllowAlbumDownload(v => !v)}>
+            <div className="w-10 h-[22px] rounded-full transition-colors"
+              style={{ background: allowAlbumDownload ? 'var(--brand)' : '#D6D3D1' }} />
+            <div className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform ${allowAlbumDownload ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
+          </div>
+          <div>
+            <span className="text-sm text-stone-700">הורדת אלבומים ללקוחות</span>
+            <p className="text-xs text-stone-400 mt-0.5">כשמופעל, הלקוחה תוכל להוריד את האלבום (PDF / ZIP תמונות)</p>
           </div>
         </label>
 

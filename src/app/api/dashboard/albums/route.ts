@@ -30,13 +30,21 @@ export async function POST(req: NextRequest) {
   const session = await requireAuth()
   if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
-  const { portfolioId, name, pdfUrl, pageCount } = await req.json()
-  if (!portfolioId || !pdfUrl) return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
+  const { portfolioId, name, pdfUrl, pageCount, imageUrls } = await req.json()
+  if (!portfolioId || (!pdfUrl && !imageUrls?.length)) return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
+
+  const insert: Record<string, unknown> = {
+    portfolio_id: portfolioId,
+    name: name || 'אלבום',
+    page_count: pageCount || imageUrls?.length || 0,
+  }
+  if (pdfUrl) insert.pdf_url = pdfUrl
+  if (imageUrls?.length) insert.image_urls = imageUrls
 
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('albums')
-    .insert({ portfolio_id: portfolioId, name: name || 'אלבום', pdf_url: pdfUrl, page_count: pageCount || 0 })
+    .insert(insert)
     .select()
     .single()
 

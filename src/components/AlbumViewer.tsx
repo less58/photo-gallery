@@ -2,46 +2,27 @@
 
 import React, { useRef, useState, useEffect, forwardRef } from 'react'
 import dynamic from 'next/dynamic'
-import { ChevronLeft, ChevronRight, X, BookOpen } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, BookOpen, ZoomIn, ZoomOut, Download } from 'lucide-react'
 import type { Album } from '@/lib/types'
 
-// SSR-safe import — react-pageflip uses DOM APIs
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyComponent = React.ComponentType<any>
-// SSR-safe import — react-pageflip uses DOM APIs
+type AnyComponent = React.ComponentType<any> // eslint-disable-line @typescript-eslint/no-explicit-any
 const HTMLFlipBook = dynamic(() => import('react-pageflip').then(m => m.default as AnyComponent), {
   ssr: false,
-  loading: () => <div className="w-full h-full flex items-center justify-center"><div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" /></div>,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+    </div>
+  ),
 })
 
-// react-pageflip props (minimal subset for TypeScript)
-type FlipBookProps = {
-  width: number
-  height: number
-  showCover?: boolean
-  drawShadow?: boolean
-  flippingTime?: number
-  useMouseEvents?: boolean
-  usePortrait?: boolean
-  startZIndex?: number
-  autoSize?: boolean
-  maxShadowOpacity?: number
-  mobileScrollSupport?: boolean
-  showPageCorners?: boolean
-  disableFlipByClick?: boolean
-  className?: string
-  style?: React.CSSProperties
-  onFlip?: (e: { data: number }) => void
-  children: React.ReactNode
-  ref?: React.Ref<unknown>
+function getPageUrl(album: Album, pageIdx: number): string {
+  if (album.image_urls?.length) {
+    return album.image_urls[pageIdx] ?? ''
+  }
+  const page = pageIdx + 1
+  return (album.pdf_url ?? '').replace('/upload/', `/upload/pg_${page},f_jpg,w_1800,q_auto:best/`)
 }
 
-// Build Cloudinary transformation URL for a specific PDF page
-function pageUrl(pdfUrl: string, page: number): string {
-  return pdfUrl.replace('/upload/', `/upload/pg_${page},f_jpg,w_1800,q_auto:best/`)
-}
-
-// Each page must be a forwardRef component for react-pageflip
 const AlbumPage = forwardRef<HTMLDivElement, { url: string; pageNum: number }>(
   ({ url, pageNum }, ref) => {
     const [loaded, setLoaded] = useState(false)
@@ -52,6 +33,7 @@ const AlbumPage = forwardRef<HTMLDivElement, { url: string; pageNum: number }>(
             <div className="w-6 h-6 border-2 border-stone-400 border-t-stone-700 rounded-full animate-spin" />
           </div>
         )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
           alt={`עמוד ${pageNum}`}
@@ -69,13 +51,19 @@ AlbumPage.displayName = 'AlbumPage'
 type Props = {
   album: Album
   onClose: () => void
+  allowDownload?: boolean
 }
 
-export default function AlbumViewer({ album, onClose }: Props) {
+export default function AlbumViewer({ album, onClose, allowDownload = false }: Props) {
   const bookRef = useRef<{ pageFlip: () => { flipNext: () => void; flipPrev: () => void; getCurrentPageIndex: () => number } }>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [bookDims, setBookDims] = useState({ w: 400, h: 267 })
   const [mounted, setMounted] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [downloading, setDownloading] = useState(false)
+
+  const pageCount = album.image_urls?.length ?? album.page_count
+  const isImageAlbum = !!album.image_urls?.length
 
   useEffect(() => {
     setMounted(true)
@@ -89,45 +77,112 @@ export default function AlbumViewer({ album, onClose }: Props) {
     return () => window.removeEventListener('resize', calc)
   }, [])
 
-  // Close on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowRight') bookRef.current?.pageFlip().flipNext()
       if (e.key === 'ArrowLeft') bookRef.current?.pageFlip().flipPrev()
+      if ((e.ctrlKey || e.metaKey) && e.key === '=') { e.preventDefault(); setZoom(z => Math.min(2, +(z + 0.15).toFixed(2))) }
+      if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); setZoom(z => Math.max(0.4, +(z - 0.15).toFixed(2))) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const pages = Array.from({ length: album.page_count }, (_, i) => i + 1)
+  const pages = Array.from({ length: pageCount }, (_, i) => i)
   const isFirst = currentPage === 0
-  const isLast = currentPage >= album.page_count - 1
+  const isLast = currentPage >= pageCount - 1
 
-  // Spread count for display: cover(1) + spreads
-  const totalViews = 1 + Math.ceil((album.page_count - 1) / 2)
-  // Current view index (0-based)
+  const totalViews = 1 + Math.ceil((pageCount - 1) / 2)
   const currentView = currentPage === 0 ? 0 : Math.floor((currentPage + 1) / 2)
+
+  async function downloadAlbum() {
+    if (downloading) return
+    setDownloading(true)
+    try {
+      if (isImageAlbum && album.image_urls) {
+        const { default: JSZip } = await import('jszip')
+        const zip = new JSZip()
+        for (let i = 0; i < album.image_urls.length; i++) {
+          const res = await fetch(album.image_urls[i])
+          const blob = await res.blob()
+          const ext = blob.type.split('/')[1]?.split('+')[0] || 'jpg'
+          zip.file(`${String(i + 1).padStart(3, '0')}.${ext}`, blob)
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' })
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(zipBlob)
+        a.download = `${album.name}.zip`
+        a.click()
+        URL.revokeObjectURL(a.href)
+      } else if (album.pdf_url) {
+        const a = document.createElement('a')
+        a.href = album.pdf_url
+        a.download = `${album.name}.pdf`
+        a.target = '_blank'
+        a.click()
+      }
+    } catch { /* ignore */ }
+    setDownloading(false)
+  }
+
+  function pageLabel() {
+    if (currentPage === 0) return 'שער'
+    const p1 = currentPage
+    const p2 = Math.min(currentPage + 1, pageCount)
+    return p1 === p2 ? `עמוד ${p1}` : `עמודים ${p1}–${p2}`
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-[#1a1008] flex flex-col" onClick={onClose}>
       {/* Header */}
       <div
-        className="flex items-center justify-between px-6 py-3 shrink-0"
+        className="flex items-center justify-between px-6 py-3 shrink-0 gap-4"
         style={{ background: 'rgba(0,0,0,0.5)' }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 text-amber-200/80">
-          <BookOpen size={16} />
-          <span className="font-medium text-sm truncate max-w-xs">{album.name}</span>
+        <div className="flex items-center gap-2 text-amber-200/80 min-w-0">
+          <BookOpen size={16} className="shrink-0" />
+          <span className="font-medium text-sm truncate">{album.name}</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-white/40 text-xs">
-            {currentPage === 0
-              ? 'שער'
-              : `עמודים ${currentPage}–${Math.min(currentPage + 1, album.page_count)}`}
-            {' '}· {album.page_count} עמודים
+
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-white/40 text-xs hidden sm:block">
+            {pageLabel()} · {pageCount} עמודים
           </span>
+
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 bg-white/10 rounded-lg px-1 py-0.5">
+            <button
+              onClick={() => setZoom(z => Math.max(0.4, +(z - 0.15).toFixed(2)))}
+              className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white transition rounded"
+              title="הקטן (Ctrl -)"
+            >
+              <ZoomOut size={14} />
+            </button>
+            <span className="text-white/50 text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={() => setZoom(z => Math.min(2, +(z + 0.15).toFixed(2)))}
+              className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white transition rounded"
+              title="הגדל (Ctrl +)"
+            >
+              <ZoomIn size={14} />
+            </button>
+          </div>
+
+          {/* Download */}
+          {allowDownload && (
+            <button
+              onClick={downloadAlbum}
+              disabled={downloading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs transition disabled:opacity-40"
+              title="הורד אלבום"
+            >
+              <Download size={13} />
+              <span className="hidden sm:inline">{downloading ? 'מוריד...' : 'הורד'}</span>
+            </button>
+          )}
+
           <button onClick={onClose} className="text-white/50 hover:text-white transition p-1">
             <X size={18} />
           </button>
@@ -139,7 +194,6 @@ export default function AlbumViewer({ album, onClose }: Props) {
         className="flex-1 flex items-center justify-center gap-6 px-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        {/* Left arrow — go to previous spread */}
         <button
           type="button"
           onClick={() => bookRef.current?.pageFlip().flipPrev()}
@@ -149,9 +203,16 @@ export default function AlbumViewer({ album, onClose }: Props) {
           <ChevronLeft size={26} />
         </button>
 
-        {/* Flipbook */}
-        <div className="relative" style={{ filter: 'drop-shadow(0 20px 60px rgba(0,0,0,0.7))' }}>
-          {mounted && album.page_count > 0 ? (
+        <div
+          className="relative overflow-hidden"
+          style={{
+            filter: 'drop-shadow(0 20px 60px rgba(0,0,0,0.7))',
+            transform: `scale(${zoom})`,
+            transformOrigin: 'center center',
+            transition: 'transform 0.2s ease',
+          }}
+        >
+          {mounted && pageCount > 0 ? (
             <HTMLFlipBook
               ref={bookRef as React.Ref<unknown>}
               width={bookDims.w}
@@ -171,8 +232,8 @@ export default function AlbumViewer({ album, onClose }: Props) {
               style={{}}
               onFlip={(e: { data: number }) => setCurrentPage(e.data)}
             >
-              {pages.map(p => (
-                <AlbumPage key={p} url={pageUrl(album.pdf_url, p)} pageNum={p} />
+              {pages.map(i => (
+                <AlbumPage key={i} url={getPageUrl(album, i)} pageNum={i + 1} />
               ))}
             </HTMLFlipBook>
           ) : (
@@ -182,7 +243,6 @@ export default function AlbumViewer({ album, onClose }: Props) {
           )}
         </div>
 
-        {/* Right arrow — go to next spread */}
         <button
           type="button"
           onClick={() => bookRef.current?.pageFlip().flipNext()}

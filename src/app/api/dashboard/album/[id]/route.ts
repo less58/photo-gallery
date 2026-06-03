@@ -9,6 +9,21 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
+
+  const { id } = await params
+  const { name } = await req.json()
+  if (!name?.trim()) return Response.json({ error: 'חסר שם' }, { status: 400 })
+
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('albums').update({ name: name.trim() }).eq('id', id).select().single()
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json(data)
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
