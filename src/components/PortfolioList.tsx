@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle } from 'lucide-react'
 import { useToast } from './Toast'
+import { useUpload } from '@/context/UploadContext'
 
 type Portfolio = {
   id: string
@@ -26,6 +27,7 @@ export default function PortfolioList({
   photographerName: string
 }) {
   const toast = useToast()
+  const { jobs } = useUpload()
   const [portfolios, setPortfolios] = useState(initial)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [togglingDone, setTogglingDone] = useState<string | null>(null)
@@ -104,22 +106,49 @@ export default function PortfolioList({
             >
               <Link href={`/dashboard/portfolio/${portfolio.id}`} className="block">
                 {/* Cover image */}
-                {portfolio.cover_url ? (
-                  <div className="w-full h-36 relative overflow-hidden">
-                    <Image
-                      src={portfolio.cover_url}
-                      alt={portfolio.title}
-                      fill unoptimized
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                  </div>
-                ) : (
-                  <div className="w-full h-36 flex items-center justify-center"
-                    style={{ background: color + '10' }}>
-                    <ImageIcon size={28} strokeWidth={1.2} style={{ color: color + '60' }} />
-                  </div>
-                )}
+                {(() => {
+                  const activeJobs = jobs.filter(j => j.portfolioId === portfolio.id && j.status === 'uploading')
+                  const isUploading = activeJobs.length > 0
+                  const uploadedCount = activeJobs.reduce((a, j) => a + j.done, 0)
+                  const totalCount = activeJobs.reduce((a, j) => a + j.total, 0)
+                  const pct = totalCount > 0 ? Math.round((uploadedCount / totalCount) * 100) : 0
+                  return (
+                    <div className="relative">
+                      {portfolio.cover_url ? (
+                        <div className="w-full h-36 relative overflow-hidden">
+                          <Image
+                            src={portfolio.cover_url}
+                            alt={portfolio.title}
+                            fill unoptimized
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-36 flex items-center justify-center"
+                          style={{ background: color + '10' }}>
+                          <ImageIcon size={28} strokeWidth={1.2} style={{ color: color + '60' }} />
+                        </div>
+                      )}
+                      {/* Upload progress bar */}
+                      {isUploading && (
+                        <div className="absolute bottom-0 left-0 right-0">
+                          <div className="h-1.5 bg-black/30 w-full">
+                            <div
+                              className="h-full transition-all duration-300"
+                              style={{ width: `${pct}%`, background: color }}
+                            />
+                          </div>
+                          <div className="absolute bottom-2 left-0 right-0 flex justify-center pointer-events-none">
+                            <span className="text-[10px] font-medium text-white bg-black/50 px-2 py-0.5 rounded-full">
+                              מעלה {uploadedCount}/{totalCount}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <div className="p-5">
                   {/* Color bar */}

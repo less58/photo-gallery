@@ -9,13 +9,15 @@ export type UploadJob = {
   id: string
   sessionId: string
   sessionName: string
+  portfolioId: string
+  portfolioTitle: string
   total: number
   done: number
   failed: number
   failedFiles: FailedFile[]
   startedAt: number
   batchProgress: number
-  status: 'uploading' | 'done'
+  status: 'uploading' | 'done' | 'cancelled'
 }
 
 type SignData = {
@@ -32,32 +34,32 @@ type CloudinaryResult =
 
 type UploadContextType = {
   jobs: UploadJob[]
-  // Full managed direct-upload (PortfolioEditor / future use)
   startUpload: (
     sessionId: string,
     sessionName: string,
     portfolioId: string,
+    portfolioTitle: string,
     files: File[],
     onPhotoSaved: (photo: Photo) => void
   ) => void
-  // Lower-level manual tracking (PortfolioTabs uses its own /api/upload logic)
-  trackUpload: (sessionId: string, sessionName: string, total: number) => string
+  trackUpload: (sessionId: string, sessionName: string, portfolioId: string, portfolioTitle: string, total: number) => string
   progressUpload: (jobId: string, done: number, failed: number) => void
   failUpload: (jobId: string, name: string, reason: string) => void
   doneUpload: (jobId: string) => void
   dismissJob: (jobId: string) => void
+  cancelJob: (jobId: string) => void
+  isCancelled: (jobId: string) => boolean
 }
 
 export const UPLOAD_ALLOWED_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
   'image/heic', 'image/heif', 'image/tiff',
 ])
-export const UPLOAD_MAX_SIZE = 50 * 1024 * 1024  // 50MB (client pre-filter; server enforces 50MB too)
+export const UPLOAD_MAX_SIZE = 50 * 1024 * 1024
 
 const CONCURRENCY = 6
 const MAX_RETRIES = 3
 const PROGRESS_THROTTLE_MS = 150
-// Resize to this dimension before upload to stay within Cloudinary limits and speed up upload
 const RESIZE_MAX_DIMENSION = 1920
 const RESIZE_QUALITY = 0.92
 
@@ -84,29 +86,21 @@ async function fetchSignature(portfolioId: string): Promise<SignData | null> {
 }
 
 async function resizeForUpload(file: File): Promise<File> {
-  // Only resize formats that Canvas can handle
   const resizable = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
   if (!resizable.has(file.type)) return file
-
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions)
-
     if (bitmap.width <= RESIZE_MAX_DIMENSION && bitmap.height <= RESIZE_MAX_DIMENSION) {
-      bitmap.close()
-      return file
+      bitmap.close(); return file
     }
-
     const ratio = Math.min(RESIZE_MAX_DIMENSION / bitmap.width, RESIZE_MAX_DIMENSION / bitmap.height)
     const canvas = document.createElement('canvas')
     canvas.width = Math.round(bitmap.width * ratio)
     canvas.height = Math.round(bitmap.height * ratio)
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
     bitmap.close()
-
     const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', RESIZE_QUALITY))
     if (!blob) return file
-
     return new File([blob], file.name, { type: 'image/jpeg' })
   } catch {
     return file
@@ -126,7 +120,6 @@ function uploadToCloudinary(
     fd.append('signature', signData.signature)
     fd.append('timestamp', String(signData.timestamp))
     fd.append('folder', signData.folder)
-
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
     }
@@ -187,6 +180,16 @@ async function savePhotoToDB(
 export function UploadProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<UploadJob[]>([])
   const counter = useRef(0)
+  const cancelledRef = useRef<Set<string>>(new Set())
+
+  const isCancelled = useCallback((jobId: string) => cancelledRef.current.has(jobId), [])
+
+  const cancelJob = useCallback((jobId: string) => {
+    cancelledRef.current.add(jobId)
+    setJobs(prev => prev.map(j =>
+      j.id === jobId && j.status === 'uploading' ? { ...j, status: 'cancelled' } : j
+    ))
+  }, [])
 
   const dismissJob = useCallback((jobId: string) => {
     setJobs(prev => prev.filter(j => j.id !== jobId))
@@ -196,13 +199,14 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     sessionId: string,
     sessionName: string,
     portfolioId: string,
+    portfolioTitle: string,
     files: File[],
     onPhotoSaved: (photo: Photo) => void
   ) => {
     void (async () => {
       const jobId = `job-${++counter.current}`
       setJobs(prev => [...prev, {
-        id: jobId, sessionId, sessionName,
+        id: jobId, sessionId, sessionName, portfolioId, portfolioTitle,
         total: files.length, done: 0, failed: 0, failedFiles: [],
         startedAt: Date.now(), batchProgress: 0, status: 'uploading',
       }])
@@ -211,8 +215,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       if (!signResult) {
         const reason = 'לא ניתן לקבל אישור מהשרת — בדקי חיבור'
         setJobs(prev => prev.map(j => j.id === jobId ? {
-          ...j,
-          failed: files.length,
+          ...j, failed: files.length,
           failedFiles: files.map(f => ({ name: f.name, reason })),
           status: 'done',
         } : j))
@@ -231,47 +234,35 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         if (now - lastFlush < PROGRESS_THROTTLE_MS || fileProgress.size === 0) return
         lastFlush = now
         const avg = Array.from(fileProgress.values()).reduce((a, b) => a + b, 0) / fileProgress.size
-        setJobs(prev => prev.map(j => j.id === jobId
-          ? { ...j, batchProgress: Math.round(avg) }
-          : j
-        ))
+        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, batchProgress: Math.round(avg) } : j))
       }
 
       async function processFile(file: File) {
         fileProgress.set(file, 0)
-
         const resized = await resizeForUpload(file)
-
         const cloudResult = await retryCloudinary(resized, signData, (pct) => {
           fileProgress.set(file, pct)
           flushBatchProgress()
         })
-
         fileProgress.set(file, 100)
         flushBatchProgress()
 
         if (!cloudResult.ok) {
           failed++
           failedFiles.push({ name: file.name, reason: cloudResult.reason })
-          setJobs(prev => prev.map(j => j.id === jobId
-            ? { ...j, failed, failedFiles: [...failedFiles] }
-            : j
-          ))
+          setJobs(prev => prev.map(j => j.id === jobId ? { ...j, failed, failedFiles: [...failedFiles] } : j))
           fileProgress.delete(file)
           return
         }
 
         const url = cloudResult.secure_url
-        // Apply display transformations via URL (not at storage time)
         const thumbnailUrl = url.replace('/upload/', '/upload/w_600,q_auto:best/')
-
         let photo: Photo | null = null
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           photo = await savePhotoToDB(sessionId, url, thumbnailUrl, file.name)
           if (photo) break
           if (attempt < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000 * attempt))
         }
-
         fileProgress.delete(file)
 
         if (photo) {
@@ -281,10 +272,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         } else {
           failed++
           failedFiles.push({ name: file.name, reason: 'שגיאת שמירה בבסיס הנתונים' })
-          setJobs(prev => prev.map(j => j.id === jobId
-            ? { ...j, failed, failedFiles: [...failedFiles] }
-            : j
-          ))
+          setJobs(prev => prev.map(j => j.id === jobId ? { ...j, failed, failedFiles: [...failedFiles] } : j))
         }
       }
 
@@ -292,28 +280,35 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       await Promise.all(
         Array.from({ length: CONCURRENCY }, async () => {
           while (queue.length > 0) {
+            if (cancelledRef.current.has(jobId)) break
             const file = queue.shift()
             if (file) await processFile(file)
           }
         })
       )
 
-      setJobs(prev => prev.map(j => j.id === jobId
-        ? { ...j, status: 'done', batchProgress: 100 }
-        : j
-      ))
-
-      // Only auto-dismiss if everything succeeded
-      if (failed === 0) {
-        setTimeout(() => setJobs(prev => prev.filter(j => j.id !== jobId)), 6000)
+      if (cancelledRef.current.has(jobId)) {
+        // already marked cancelled by cancelJob — just update done count
+        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, batchProgress: 100 } : j))
+      } else {
+        setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'done', batchProgress: 100 } : j))
+        if (failed === 0) {
+          setTimeout(() => setJobs(prev => prev.filter(j => j.id !== jobId)), 6000)
+        }
       }
     })()
   }, [])
 
-  const trackUpload = useCallback((sessionId: string, sessionName: string, total: number): string => {
+  const trackUpload = useCallback((
+    sessionId: string,
+    sessionName: string,
+    portfolioId: string,
+    portfolioTitle: string,
+    total: number
+  ): string => {
     const jobId = `job-${++counter.current}`
     setJobs(prev => [...prev, {
-      id: jobId, sessionId, sessionName,
+      id: jobId, sessionId, sessionName, portfolioId, portfolioTitle,
       total, done: 0, failed: 0, failedFiles: [],
       startedAt: Date.now(), batchProgress: 0, status: 'uploading',
     }])
@@ -334,6 +329,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   const doneUpload = useCallback((jobId: string) => {
     setJobs(prev => {
       const job = prev.find(j => j.id === jobId)
+      if (job?.status === 'cancelled') return prev  // already handled
       const hasFailed = (job?.failed ?? 0) > 0
       const updated = prev.map(j => j.id === jobId ? { ...j, status: 'done' as const } : j)
       if (!hasFailed) {
@@ -344,7 +340,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <UploadContext.Provider value={{ jobs, startUpload, trackUpload, progressUpload, failUpload, doneUpload, dismissJob }}>
+    <UploadContext.Provider value={{
+      jobs, startUpload, trackUpload, progressUpload, failUpload,
+      doneUpload, dismissJob, cancelJob, isCancelled,
+    }}>
       {children}
     </UploadContext.Provider>
   )

@@ -66,7 +66,7 @@ export default function PortfolioEditor({ portfolio, sessions: initialSessions, 
     const sessionId = activeUploadSession
     const sessionName = sessions.find(s => s.id === sessionId)?.name ?? 'סשן'
 
-    startUpload(sessionId, sessionName, portfolio.id, validFiles, (photo) => {
+    startUpload(sessionId, sessionName, portfolio.id, portfolio.title, validFiles, (photo) => {
       if (!mountedRef.current) return
       setSessions(prev =>
         prev.map(s => s.id === sessionId

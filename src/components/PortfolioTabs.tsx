@@ -36,7 +36,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function PortfolioTabs({ portfolio, sessions: initialSessions, selections, photographer, isFrozen = false }: Props) {
   const toast = useToast()
-  const { trackUpload, progressUpload, failUpload, doneUpload } = useUpload()
+  const { trackUpload, progressUpload, failUpload, doneUpload, isCancelled } = useUpload()
   const [tab, setTab] = useState<Tab>('photos')
   const [sessions, setSessions] = useState(initialSessions)
   const [newSessionName, setNewSessionName] = useState('')
@@ -221,7 +221,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     let failed = 0
     const newPhotos: Photo[] = []
     const sessionName = sessions.find(s => s.id === sessionId)?.name ?? 'סשן'
-    const jobId = trackUpload(sessionId, sessionName, total)
+    const jobId = trackUpload(sessionId, sessionName, portfolio.id, portfolio.title, total)
 
     async function uploadOne(file: File): Promise<Photo | null> {
       const name = file.name
@@ -274,18 +274,19 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       let index = 0
 
       function startNext() {
-        while (active < CONCURRENCY && index < fileArr.length) {
-          const file = fileArr[index++]
-          active++
-          uploadOne(file).then(photo => {
-            if (photo?.id) { newPhotos.push(photo); done++ } else { failed++ }
-            progressUpload(jobId, done, failed)
-            active--
-            if (index < fileArr.length) startNext()
-            else if (active === 0) resolve()
-          })
+        if (!isCancelled(jobId)) {
+          while (active < CONCURRENCY && index < fileArr.length) {
+            const file = fileArr[index++]
+            active++
+            uploadOne(file).then(photo => {
+              if (photo?.id) { newPhotos.push(photo); done++ } else { failed++ }
+              progressUpload(jobId, done, failed)
+              active--
+              startNext()
+            })
+          }
         }
-        if (active === 0 && index >= fileArr.length) resolve()
+        if (active === 0) resolve()
       }
 
       startNext()
