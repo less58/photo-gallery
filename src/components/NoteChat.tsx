@@ -15,9 +15,10 @@ type Props = {
   postUrl: string
   mySender: 'photographer' | 'client'
   brandColor: string
+  onSend?: () => void
 }
 
-export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Props) {
+export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSend }: Props) {
   const [notes, setNotes] = useState<Note[]>([])
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -81,6 +82,7 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor }: Pr
         setNotes(prev => [...prev, data as Note])
         setMessage('')
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
+        onSend?.()
       }
     } finally {
       setSending(false)

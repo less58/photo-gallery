@@ -20,7 +20,7 @@ export async function GET() {
 
   const { data: portfolios } = await admin
     .from('portfolios')
-    .select('id, title, client_email, is_done')
+    .select('id, title, client_email, is_done, cover_url')
     .eq('photographer_id', ph.id)
     .order('created_at', { ascending: false })
 
@@ -46,6 +46,7 @@ export async function GET() {
         portfolioTitle: p.title,
         clientEmail: p.client_email,
         isDone: !!(p as { is_done?: boolean }).is_done,
+        coverUrl: (p as { cover_url?: string | null }).cover_url ?? null,
         unreadCount,
         lastMessage: lastNote?.message?.slice(0, 80) ?? null,
         lastMessageAt: lastNote?.created_at ?? null,

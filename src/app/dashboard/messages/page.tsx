@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { MessageCircle, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { MessageCircle, ArrowRight, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import NoteChat from '@/components/NoteChat'
 
 type Conversation = {
@@ -9,10 +9,29 @@ type Conversation = {
   portfolioTitle: string
   clientEmail: string
   isDone: boolean
+  coverUrl: string | null
   unreadCount: number
   lastMessage: string | null
   lastMessageAt: string | null
   lastSender: 'photographer' | 'client' | null
+}
+
+function Avatar({ coverUrl, title }: { coverUrl: string | null; title: string }) {
+  const letter = title.trim()[0] ?? '?'
+  const thumb = coverUrl?.includes('cloudinary.com')
+    ? coverUrl.replace('/upload/', '/upload/w_80,h_80,c_fill,q_auto/')
+    : coverUrl
+
+  return (
+    <div className="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-stone-200 flex items-center justify-center">
+      {thumb ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={thumb} alt="" className="w-full h-full object-cover" />
+      ) : (
+        <span className="text-stone-500 text-sm font-semibold select-none">{letter}</span>
+      )}
+    </div>
+  )
 }
 
 function ConvItem({
@@ -32,31 +51,36 @@ function ConvItem({
         isSelected ? 'bg-stone-100' : 'hover:bg-stone-50'
       }`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-stone-800 text-sm truncate">
-          {conv.portfolioTitle}
-        </span>
-        {conv.unreadCount > 0 && (
-          <span
-            className="shrink-0 min-w-[20px] h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold px-1"
-            style={{ background: 'var(--brand)' }}
-          >
-            {conv.unreadCount}
-          </span>
-        )}
+      <div className="flex items-center gap-3">
+        <Avatar coverUrl={conv.coverUrl} title={conv.portfolioTitle} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold text-stone-800 text-sm truncate">
+              {conv.portfolioTitle}
+            </span>
+            {conv.unreadCount > 0 && (
+              <span
+                className="shrink-0 min-w-[20px] h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold px-1"
+                style={{ background: 'var(--brand)' }}
+              >
+                {conv.unreadCount}
+              </span>
+            )}
+          </div>
+          <p className="text-stone-400 text-[11px] truncate">{conv.clientEmail}</p>
+          {conv.lastMessage ? (
+            <p className={`text-xs truncate mt-0.5 ${
+              conv.unreadCount > 0 && conv.lastSender === 'client'
+                ? 'font-medium text-stone-700'
+                : 'text-stone-400'
+            }`}>
+              {conv.lastSender === 'photographer' ? '↩ ' : ''}{conv.lastMessage}
+            </p>
+          ) : (
+            <p className="text-stone-300 text-xs mt-0.5 italic">אין הודעות עדיין</p>
+          )}
+        </div>
       </div>
-      <p className="text-stone-400 text-[11px] truncate">{conv.clientEmail}</p>
-      {conv.lastMessage ? (
-        <p className={`text-xs truncate mt-0.5 ${
-          conv.unreadCount > 0 && conv.lastSender === 'client'
-            ? 'font-medium text-stone-700'
-            : 'text-stone-400'
-        }`}>
-          {conv.lastSender === 'photographer' ? '↩ ' : ''}{conv.lastMessage}
-        </p>
-      ) : (
-        <p className="text-stone-300 text-xs mt-0.5 italic">אין הודעות עדיין</p>
-      )}
     </button>
   )
 }
@@ -67,6 +91,7 @@ export default function MessagesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [showCompleted, setShowCompleted] = useState(false)
+  const [search, setSearch] = useState('')
 
   const fetchSummary = useCallback((silent = false) => {
     fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
@@ -92,8 +117,17 @@ export default function MessagesPage() {
     )
   }
 
-  const active = conversations.filter(c => !c.isDone)
-  const completed = conversations.filter(c => c.isDone)
+  const filtered = useMemo(() => {
+    if (!search.trim()) return conversations
+    const q = search.toLowerCase()
+    return conversations.filter(c =>
+      c.portfolioTitle.toLowerCase().includes(q) ||
+      c.clientEmail.toLowerCase().includes(q)
+    )
+  }, [conversations, search])
+
+  const active = filtered.filter(c => !c.isDone)
+  const completed = filtered.filter(c => c.isDone)
   const selected = conversations.find(c => c.portfolioId === selectedId)
 
   return (
@@ -102,20 +136,35 @@ export default function MessagesPage() {
       style={{ height: 'calc(100vh - 68px)' }}
     >
       {/* ── Sidebar ── */}
-      <div className={`${showSidebar ? 'flex' : 'hidden'} md:flex flex-col w-full md:w-72 shrink-0 border-r border-stone-200 bg-white`}>
+      <div className={`${showSidebar ? 'flex' : 'hidden'} md:flex flex-col w-full md:w-80 shrink-0 border-r border-stone-200 bg-white`}>
         <div className="px-5 py-4 border-b border-stone-100">
           <h2 className="font-bold text-stone-800 text-base">הודעות</h2>
           <p className="text-xs text-stone-400 mt-0.5">התכתבות עם לקוחות פעילות</p>
+          <div className="relative mt-3">
+            <Search size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="ניתן לחפש לקוח לפי שם תיק או מייל"
+              className="w-full pr-8 pl-3 py-1.5 text-xs rounded-lg border border-stone-200 bg-stone-50 focus:outline-none focus:ring-2 focus:ring-rose-200 transition placeholder:text-stone-300"
+              dir="rtl"
+            />
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {loading && <p className="text-center text-stone-400 text-xs py-10">טוענת...</p>}
 
-          {!loading && active.length === 0 && (
+          {!loading && active.length === 0 && !search && (
             <div className="text-center py-10">
               <MessageCircle size={30} strokeWidth={1.2} className="mx-auto mb-2 text-stone-200" />
               <p className="text-stone-400 text-sm">אין תיקים פעילים</p>
             </div>
+          )}
+
+          {!loading && active.length === 0 && search && (
+            <p className="text-center text-stone-400 text-xs py-8">לא נמצאו תוצאות</p>
           )}
 
           {active.map(conv => (
@@ -168,6 +217,9 @@ export default function MessagesPage() {
               >
                 <ArrowRight size={18} />
               </button>
+              {selected && (
+                <Avatar coverUrl={selected.coverUrl} title={selected.portfolioTitle} />
+              )}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-stone-800 text-sm truncate">{selected?.portfolioTitle}</p>
                 <p className="text-xs text-stone-400 truncate" dir="ltr">{selected?.clientEmail}</p>
@@ -184,6 +236,7 @@ export default function MessagesPage() {
                 postUrl={`/api/dashboard/portfolio/${selectedId}/notes`}
                 mySender="photographer"
                 brandColor="var(--brand)"
+                onSend={() => fetchSummary(true)}
               />
             </div>
           </>
