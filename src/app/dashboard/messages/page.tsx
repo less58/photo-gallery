@@ -18,6 +18,18 @@ type Conversation = {
   lastSender: 'photographer' | 'client' | null
 }
 
+function formatMsgTime(dateStr: string | null): string | null {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const yesterdayStart = todayStart - 86400000
+  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  if (msgDay === todayStart) return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+  if (msgDay === yesterdayStart) return 'אתמול'
+  return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })
+}
+
 function Avatar({ coverUrl, title }: { coverUrl: string | null; title: string }) {
   const letter = title.trim()[0] ?? '?'
   const thumb = coverUrl?.includes('cloudinary.com')
@@ -60,14 +72,19 @@ function ConvItem({
             <span className="font-semibold text-stone-800 text-sm truncate">
               {conv.portfolioTitle}
             </span>
-            {conv.unreadCount > 0 && (
-              <span
-                className="shrink-0 min-w-[20px] h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold px-1"
-                style={{ background: 'var(--brand)' }}
-              >
-                {conv.unreadCount}
-              </span>
-            )}
+            <div className="flex items-center gap-1 shrink-0">
+              {formatMsgTime(conv.lastMessageAt) && (
+                <span className="text-stone-400 text-[10px]">{formatMsgTime(conv.lastMessageAt)}</span>
+              )}
+              {conv.unreadCount > 0 && (
+                <span
+                  className="min-w-[20px] h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold px-1"
+                  style={{ background: 'var(--brand)' }}
+                >
+                  {conv.unreadCount}
+                </span>
+              )}
+            </div>
           </div>
           <p className="text-stone-400 text-[11px] truncate">{conv.clientEmail}</p>
           {conv.lastMessage ? (

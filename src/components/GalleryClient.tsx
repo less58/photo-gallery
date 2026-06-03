@@ -150,7 +150,7 @@ export default function GalleryClient({
     <div className="min-h-screen" style={{ background: '#0A0A0A', color: '#fff' }}>
 
       {/* ── HERO / Cover ── */}
-      {coverUrl && (
+      {coverUrl ? (
         <div className="relative h-screen flex items-center justify-center overflow-hidden">
           <Image src={coverUrl} alt={portfolioTitle} fill unoptimized className="object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80" />
@@ -168,6 +168,23 @@ export default function GalleryClient({
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 animate-bounce">
             <span className="text-white/50 text-xs">גלגלי למטה לבחירה</span>
             <ChevronDown size={20} className="text-white/50" />
+          </div>
+        </div>
+      ) : (
+        <div
+          className="relative flex items-center justify-center py-14 overflow-hidden"
+          style={{ background: `linear-gradient(135deg, ${color}, ${color}99)` }}
+        >
+          <div className="absolute inset-0 opacity-10"
+            style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+          <div className="relative z-10 text-center px-6">
+            {logoUrl && (
+              <div className="w-20 h-20 mx-auto mb-5 relative">
+                <Image src={logoUrl} alt={photographerName} fill unoptimized className="object-contain" />
+              </div>
+            )}
+            <h1 className="text-3xl font-bold text-white drop-shadow mb-2">{portfolioTitle}</h1>
+            <p className="text-white/70 text-sm">{photographerName}</p>
           </div>
         </div>
       )}

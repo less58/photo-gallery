@@ -56,9 +56,6 @@ export async function GET() {
     // Active portfolios always shown; completed only if they have messages
     .filter(s => !s.isDone || s.lastMessage !== null)
     .sort((a, b) => {
-      // Unread first within same isDone group
-      if (a.unreadCount > 0 && b.unreadCount === 0) return -1
-      if (b.unreadCount > 0 && a.unreadCount === 0) return 1
       const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
       const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
       return tb - ta
