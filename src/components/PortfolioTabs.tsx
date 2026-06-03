@@ -60,6 +60,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState<{ done: number; total: number } | null>(null)
   const lastClickRef = useRef<{ id: string; sessionId: string } | null>(null)
   const creatingSessionRef = useRef(false)
 
@@ -441,26 +442,48 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   async function bulkDeleteSelected() {
     if (selectedPhotoIds.size === 0 || bulkDeleting) return
     if (!confirm(`למחוק ${selectedPhotoIds.size} תמונות? לא ניתן לשחזר.`)) return
+
+    const allIds = [...selectedPhotoIds]
+    const CHUNK = 15
+    const chunks: string[][] = []
+    for (let i = 0; i < allIds.length; i += CHUNK) chunks.push(allIds.slice(i, i + CHUNK))
+
     setBulkDeleting(true)
-    try {
-      const res = await fetch('/api/dashboard/photo', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ photoIds: [...selectedPhotoIds] }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        const delSet = new Set<string>(data.deletedIds || [])
-        setSessions(prev => prev.map(s => ({ ...s, photos: (s.photos || []).filter(p => !delSet.has(p.id)) })))
-        const msg = (data.skipped || 0) > 0
-          ? `${data.deleted} נמחקו · ${data.skipped} דולגו (נבחרו ע"י לקוחה)`
-          : `${data.deleted} תמונות נמחקו`
-        toast(msg)
-        exitSelectionMode()
-      } else {
-        toast(data.error || 'שגיאה במחיקה', 'error')
+    setDeleteProgress({ done: 0, total: allIds.length })
+
+    let totalDeleted = 0
+    let totalSkipped = 0
+    const allDeletedIds: string[] = []
+
+    for (const chunk of chunks) {
+      try {
+        const res = await fetch('/api/dashboard/photo', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photoIds: chunk }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          totalDeleted += data.deleted ?? 0
+          totalSkipped += data.skipped ?? 0
+          allDeletedIds.push(...(data.deletedIds ?? []))
+        } else {
+          totalSkipped += chunk.length
+        }
+      } catch {
+        totalSkipped += chunk.length
       }
-    } catch { toast('שגיאה', 'error') }
+      setDeleteProgress({ done: totalDeleted + totalSkipped, total: allIds.length })
+    }
+
+    const delSet = new Set<string>(allDeletedIds)
+    setSessions(prev => prev.map(s => ({ ...s, photos: (s.photos || []).filter(p => !delSet.has(p.id)) })))
+    const msg = totalSkipped > 0
+      ? `${totalDeleted} נמחקו · ${totalSkipped} דולגו`
+      : `${totalDeleted} תמונות נמחקו`
+    toast(msg)
+    exitSelectionMode()
+    setDeleteProgress(null)
     setBulkDeleting(false)
   }
 
@@ -662,23 +685,39 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         <div className="space-y-4">
           {selectionMode ? (
             /* ── Selection mode action bar ── */
-            <div className="flex items-center justify-between gap-2 bg-stone-900 rounded-xl px-4 py-2.5">
-              <span className="text-white text-sm font-medium">
-                {selectedPhotoIds.size > 0 ? `${selectedPhotoIds.size} נבחרו` : 'לחצי על תמונות לבחירה'}
-              </span>
-              <div className="flex items-center gap-2">
-                {selectedPhotoIds.size > 0 && (
-                  <button type="button" onClick={() => void bulkDeleteSelected()} disabled={bulkDeleting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition disabled:opacity-50">
-                    <Trash2 size={12} />
-                    {bulkDeleting ? 'מוחק...' : `מחק ${selectedPhotoIds.size}`}
-                  </button>
-                )}
-                <button type="button" onClick={exitSelectionMode}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition">
-                  <X size={13} /> ביטול
-                </button>
-              </div>
+            <div className="bg-stone-900 rounded-xl px-4 py-2.5 space-y-2">
+              {deleteProgress ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-white/80">
+                    <span>מוחק תמונות...</span>
+                    <span className="tabular-nums">{deleteProgress.done}/{deleteProgress.total}</span>
+                  </div>
+                  <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-red-400 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.round((deleteProgress.done / deleteProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-white text-sm font-medium">
+                    {selectedPhotoIds.size > 0 ? `${selectedPhotoIds.size} נבחרו` : 'לחצי על תמונות לבחירה'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {selectedPhotoIds.size > 0 && (
+                      <button type="button" onClick={() => void bulkDeleteSelected()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-semibold transition">
+                        <Trash2 size={12} /> מחק {selectedPhotoIds.size}
+                      </button>
+                    )}
+                    <button type="button" onClick={exitSelectionMode}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition">
+                      <X size={13} /> ביטול
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             /* ── Normal header ── */
