@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send } from 'lucide-react'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle } from 'lucide-react'
 import type { Session, Photo, Selection, SelectionStatus } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
+import NoteChat from './NoteChat'
 import { useToast } from './Toast'
 
 type Props = {
@@ -33,7 +34,7 @@ type GalleryTab = 'gallery' | 'selected'
 
 export default function GalleryClient({
   sessions, allPhotos, initialSelections, quota, color,
-  coverUrl, instructions, photographerName, logoUrl, portfolioTitle,
+  coverUrl, instructions, photographerName, logoUrl, portfolioTitle, portfolioId,
   showSendButton = true,
 }: Props) {
   const toast = useToast()
@@ -48,6 +49,7 @@ export default function GalleryClient({
   const [lightbox, setLightbox] = useState<Photo | null>(null)
   const [tab, setTab] = useState<GalleryTab>('gallery')
   const [sendingReport, setSendingReport] = useState(false)
+  const [showChat, setShowChat] = useState(false)
   const galleryRef = useRef<HTMLDivElement>(null)
 
   const visiblePhotos = activeSession === 'all'
@@ -449,6 +451,37 @@ export default function GalleryClient({
           onMark={handleMark}
           onClose={() => setComparePhotos(null)}
         />
+      )}
+
+      {/* ── Chat floating button ── */}
+      <button
+        type="button"
+        onClick={() => setShowChat(v => !v)}
+        className="fixed bottom-5 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-transform active:scale-95"
+        style={{ background: color }}
+        title="הודעות לצלמת"
+      >
+        {showChat ? <X size={20} className="text-white" /> : <MessageCircle size={20} className="text-white" />}
+      </button>
+
+      {/* ── Chat panel ── */}
+      {showChat && (
+        <div className="fixed bottom-20 left-4 z-40 w-80 bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden"
+          style={{ maxHeight: '70vh' }}>
+          <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between"
+            style={{ background: color + '12' }}>
+            <p className="font-semibold text-stone-700 text-sm">הודעות לצלמת</p>
+            <button type="button" onClick={() => setShowChat(false)}>
+              <X size={16} className="text-stone-400 hover:text-stone-600" />
+            </button>
+          </div>
+          <NoteChat
+            fetchUrl={`/api/notes/${portfolioId}`}
+            postUrl={`/api/notes/${portfolioId}`}
+            mySender="client"
+            brandColor={color}
+          />
+        </div>
       )}
     </div>
   )

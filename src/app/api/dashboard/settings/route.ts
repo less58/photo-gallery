@@ -7,6 +7,7 @@ const OPTIONAL_COLUMNS = [
   'watermark_public_id', 'watermark_url',
   'watermark_type', 'watermark_text', 'watermark_opacity',
   'watermark_position', 'watermark_font_size', 'watermark_color',
+  'watermark_x', 'watermark_y', 'watermark_rotation', 'watermark_image_opacity',
   'logo_public_id',
   'email_subject', 'email_body', 'email_provider',
   'gmail_address', 'gmail_app_password',
@@ -31,12 +32,16 @@ export async function PATCH(req: NextRequest) {
   if (body.logoPublicId !== undefined)       update.logo_public_id = body.logoPublicId
   if (body.watermarkUrl !== undefined)       update.watermark_url = body.watermarkUrl
   if (body.watermarkPublicId !== undefined)  update.watermark_public_id = body.watermarkPublicId
-  if (body.watermarkType !== undefined)      update.watermark_type = body.watermarkType
-  if (body.watermarkText !== undefined)      update.watermark_text = body.watermarkText
-  if (body.watermarkOpacity !== undefined)   update.watermark_opacity = body.watermarkOpacity
-  if (body.watermarkPosition !== undefined)  update.watermark_position = body.watermarkPosition
-  if (body.watermarkFontSize !== undefined)  update.watermark_font_size = body.watermarkFontSize
-  if (body.watermarkColor !== undefined)     update.watermark_color = body.watermarkColor
+  if (body.watermarkType !== undefined)         update.watermark_type = body.watermarkType
+  if (body.watermarkText !== undefined)         update.watermark_text = body.watermarkText
+  if (body.watermarkOpacity !== undefined)      update.watermark_opacity = body.watermarkOpacity
+  if (body.watermarkPosition !== undefined)     update.watermark_position = body.watermarkPosition
+  if (body.watermarkFontSize !== undefined)     update.watermark_font_size = body.watermarkFontSize
+  if (body.watermarkColor !== undefined)        update.watermark_color = body.watermarkColor
+  if (body.watermarkX !== undefined)            update.watermark_x = body.watermarkX
+  if (body.watermarkY !== undefined)            update.watermark_y = body.watermarkY
+  if (body.watermarkRotation !== undefined)     update.watermark_rotation = body.watermarkRotation
+  if (body.watermarkImageOpacity !== undefined) update.watermark_image_opacity = body.watermarkImageOpacity
   if (body.defaultInstructions !== undefined) update.default_instructions = body.defaultInstructions
   if (body.sendClientEmails !== undefined)   update.send_client_emails = body.sendClientEmails
   if (body.senderEmail !== undefined)        update.sender_email = body.senderEmail

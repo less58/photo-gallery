@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle } from 'lucide-react'
+import NoteChat from './NoteChat'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
 import { useUpload } from '@/context/UploadContext'
@@ -14,6 +15,8 @@ type Photographer = {
   watermark_type?: string | null; watermark_text?: string | null
   watermark_opacity?: number | null; watermark_position?: string | null
   watermark_font_size?: number | null; watermark_color?: string | null
+  watermark_x?: number | null; watermark_y?: number | null
+  watermark_rotation?: number | null; watermark_image_opacity?: number | null
   send_client_emails: boolean
 }
 type Props = {
@@ -23,7 +26,7 @@ type Props = {
   photographer: Photographer
   isFrozen?: boolean
 }
-type Tab = 'photos' | 'selected'
+type Tab = 'photos' | 'selected' | 'notes'
 
 const STATUS_COLOR: Record<string, string> = {
   approved: '#22C55E',
@@ -230,11 +233,15 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       if (photographer.watermark_type === 'text' && photographer.watermark_text) {
         fd.append('watermarkText', photographer.watermark_text)
         fd.append('watermarkOpacity', String(photographer.watermark_opacity ?? 30))
-        fd.append('watermarkPosition', photographer.watermark_position ?? 'south_east')
-        fd.append('watermarkFontSize', String(photographer.watermark_font_size ?? 80))
+        fd.append('watermarkPosition', photographer.watermark_position ?? 'free')
+        fd.append('watermarkFontSize', String(photographer.watermark_font_size ?? 120))
         fd.append('watermarkColor', photographer.watermark_color ?? '#ffffff')
+        fd.append('watermarkX', String(photographer.watermark_x ?? 0.5))
+        fd.append('watermarkY', String(photographer.watermark_y ?? 0.85))
+        fd.append('watermarkRotation', String(photographer.watermark_rotation ?? 0))
       } else if (photographer.watermark_public_id) {
         fd.append('watermarkPublicId', photographer.watermark_public_id)
+        fd.append('watermarkImageOpacity', String(photographer.watermark_image_opacity ?? 20))
       }
 
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
@@ -547,7 +554,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
       {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-5 w-fit">
-        {([['photos', 'תמונות'], ['selected', 'נבחרו']] as [Tab, string][]).map(([t, label]) => (
+        {([['photos', 'תמונות'], ['selected', 'נבחרו'], ['notes', 'הערות']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
             style={tab === t
@@ -557,6 +564,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-[10px] mr-1"
                 style={{ background: color }}>{approvedPhotos.length}</span>
             )}
+            {t === 'notes' && <MessageCircle size={12} className="inline mr-1 mb-0.5" />}
             {label}
           </button>
         ))}
@@ -773,6 +781,21 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Notes tab ── */}
+      {tab === 'notes' && (
+        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+          <div className="px-5 py-3 border-b border-stone-100 bg-stone-50">
+            <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">הודעות עם הלקוחה</h3>
+          </div>
+          <NoteChat
+            fetchUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}
+            postUrl={`/api/dashboard/portfolio/${portfolio.id}/notes`}
+            mySender="photographer"
+            brandColor={color}
+          />
         </div>
       )}
 

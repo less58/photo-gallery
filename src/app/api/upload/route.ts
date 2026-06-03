@@ -15,13 +15,21 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData()
   const file = formData.get('file') as File
   const folder = (formData.get('folder') as string) || 'photos'
+  const extractColors = formData.get('extractColors') === 'true'
+
+  // Image watermark
   const watermarkPublicId = formData.get('watermarkPublicId') as string | null
+  const watermarkImageOpacity = parseInt((formData.get('watermarkImageOpacity') as string | null) ?? '20', 10)
+
+  // Text watermark
   const watermarkText = formData.get('watermarkText') as string | null
   const watermarkOpacity = parseInt((formData.get('watermarkOpacity') as string | null) ?? '30', 10)
-  const watermarkPosition = (formData.get('watermarkPosition') as string | null) ?? 'south_east'
-  const watermarkFontSize = parseInt((formData.get('watermarkFontSize') as string | null) ?? '80', 10)
+  const watermarkPosition = (formData.get('watermarkPosition') as string | null) ?? 'free'
+  const watermarkFontSize = parseInt((formData.get('watermarkFontSize') as string | null) ?? '120', 10)
   const watermarkColor = (formData.get('watermarkColor') as string | null) ?? '#ffffff'
-  const extractColors = formData.get('extractColors') === 'true'
+  const watermarkX = parseFloat((formData.get('watermarkX') as string | null) ?? '0.5')
+  const watermarkY = parseFloat((formData.get('watermarkY') as string | null) ?? '0.85')
+  const watermarkRotation = parseInt((formData.get('watermarkRotation') as string | null) ?? '0', 10)
 
   if (!file) return Response.json({ error: 'חסר קובץ' }, { status: 400 })
   if (!file.type.startsWith('image/')) return Response.json({ error: 'סוג קובץ לא נתמך' }, { status: 400 })
@@ -36,22 +44,39 @@ export async function POST(req: NextRequest) {
 
   if (watermarkPublicId) {
     transformation.push(
-      { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: 20, width: 0.6, flags: 'relative' },
+      { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, flags: 'relative' },
       { flags: 'layer_apply' }
     )
   } else if (watermarkText) {
     const isTiled = watermarkPosition === 'tiled'
     const colorVal = watermarkColor.startsWith('#') ? `rgb:${watermarkColor.slice(1)}` : watermarkColor
-    transformation.push(
-      {
-        overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
-        color: colorVal,
-        gravity: isTiled ? 'center' : watermarkPosition,
-        opacity: watermarkOpacity,
-        ...(isTiled ? { flags: 'tiled' } : {}),
-      },
-      { flags: 'layer_apply' }
-    )
+
+    if (isTiled) {
+      transformation.push(
+        {
+          overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
+          color: colorVal,
+          gravity: 'center',
+          opacity: watermarkOpacity,
+          flags: 'tiled',
+        },
+        { flags: 'layer_apply' }
+      )
+    } else {
+      transformation.push(
+        {
+          overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
+          color: colorVal,
+          gravity: 'center',
+          x: watermarkX - 0.5,
+          y: watermarkY - 0.5,
+          opacity: watermarkOpacity,
+          angle: watermarkRotation || undefined,
+          flags: 'relative',
+        },
+        { flags: 'layer_apply' }
+      )
+    }
   }
 
   const uploadOptions: Record<string, unknown> = {
