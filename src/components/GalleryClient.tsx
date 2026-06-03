@@ -733,7 +733,7 @@ export default function GalleryClient({
 
             {/* Zoom controls */}
             <div
-              className="absolute bottom-16 right-4 flex flex-col items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-xl p-2 z-10"
+              className="absolute bottom-20 right-4 flex flex-col items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-xl p-2 z-10"
               onMouseDown={e => e.stopPropagation()}
             >
               <button type="button" onClick={lbZoomIn}
@@ -747,8 +747,12 @@ export default function GalleryClient({
               </button>
             </div>
 
+            {/* Gradient backdrop so buttons are visible over any image */}
+            <div className="absolute bottom-0 inset-x-0 h-20 pointer-events-none z-[9]"
+              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.55), transparent)' }} />
+
             {/* Selection buttons */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 z-10">
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2.5 z-10">
               {(['approved', 'maybe', 'rejected'] as SelectionStatus[]).map(s => {
                 const blocked = s === 'approved' && isApproveBlocked && selections[lightbox.id] !== 'approved'
                 const isSelected = selections[lightbox.id] === s
@@ -759,15 +763,14 @@ export default function GalleryClient({
                     onClick={() => { handleMark(lightbox.id, isSelected ? null : s); setLightbox(null) }}
                     onMouseEnter={() => setHoveredLbBtn(s)}
                     onMouseLeave={() => setHoveredLbBtn(null)}
-                    className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-xl active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{
-                      background: (isSelected || isHovered) ? STATUS_COLOR[s] : 'rgba(255,255,255,0.15)',
-                      transform: isHovered ? 'scale(1.12)' : 'scale(1)',
-                      outline: isSelected ? `2px solid ${STATUS_COLOR[s]}` : 'none',
-                      outlineOffset: '3px',
-                      transition: 'background 0.15s ease, transform 0.15s ease',
+                      background: (isSelected || isHovered) ? STATUS_COLOR[s] : 'rgba(0,0,0,0.45)',
+                      border: `1.5px solid ${(isSelected || isHovered) ? STATUS_COLOR[s] : 'rgba(255,255,255,0.35)'}`,
+                      transform: isHovered ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'background 0.15s ease, transform 0.15s ease, border-color 0.15s ease',
                     }}>
-                    {s === 'approved' ? <Check size={20} /> : s === 'rejected' ? <X size={20} /> : <HelpCircle size={20} />}
+                    {s === 'approved' ? <Check size={17} /> : s === 'rejected' ? <X size={17} /> : <HelpCircle size={17} />}
                   </button>
                 )
               })}

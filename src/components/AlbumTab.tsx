@@ -33,27 +33,49 @@ export default function AlbumTab({ portfolioId, color }: Props) {
       return
     }
     setUploading(true)
-    setUploadStatus('מעלה PDF...')
+    setUploadStatus('מכין העלאה...')
     try {
+      const folder = `albums/${portfolioId}`
+
+      // Step 1: get a Cloudinary signature from our server (tiny request, no file data)
+      setUploadStatus('מאמת...')
+      const sigRes = await fetch('/api/cloudinary-sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder }),
+      })
+      if (!sigRes.ok) throw new Error('שגיאת אימות')
+      const { signature, timestamp, apiKey, cloudName } = await sigRes.json()
+
+      // Step 2: upload directly to Cloudinary — bypasses Vercel body-size limit entirely
+      setUploadStatus(`מעלה PDF (${(file.size / 1024 / 1024).toFixed(1)} MB)...`)
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('folder', `albums/${portfolioId}`)
-      const res = await fetch('/api/upload-pdf', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok || !data.url) throw new Error(data.error || 'שגיאה בהעלאה')
+      fd.append('folder', folder)
+      fd.append('timestamp', String(timestamp))
+      fd.append('api_key', apiKey)
+      fd.append('signature', signature)
 
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        { method: 'POST', body: fd }
+      )
+      const uploadData = await uploadRes.json()
+      if (!uploadData.secure_url) throw new Error(uploadData.error?.message || 'שגיאה בהעלאה ל-Cloudinary')
+
+      // Step 3: save metadata to our DB (tiny JSON request)
       setUploadStatus('שומר...')
-      const res2 = await fetch('/api/dashboard/albums', {
+      const saveRes = await fetch('/api/dashboard/albums', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           portfolioId,
           name: file.name.replace(/\.pdf$/i, ''),
-          pdfUrl: data.url,
-          pageCount: data.pageCount,
+          pdfUrl: uploadData.secure_url,
+          pageCount: uploadData.pages ?? 0,
         }),
       })
-      const album = await res2.json()
+      const album = await saveRes.json()
       if (album.id) setAlbums(prev => [album, ...prev])
     } catch (e) {
       alert(e instanceof Error ? e.message : 'שגיאה בהעלאה')
