@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 type Params = { params: Promise<{ portfolioId: string }> }
 
 async function getSession(portfolioId: string) {
@@ -26,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .order('created_at', { ascending: true })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json(data)
+  return Response.json(data, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
