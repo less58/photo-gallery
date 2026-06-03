@@ -175,7 +175,7 @@ export default function UploadProgressPanel() {
               key={job.id}
               job={job}
               onDismiss={() => dismissJob(job.id)}
-              onCancel={() => cancelJob(job.id)}
+              onCancel={() => { cancelJob(job.id); dismissJob(job.id) }}
             />
           ))}
         </div>
