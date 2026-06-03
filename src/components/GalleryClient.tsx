@@ -52,7 +52,22 @@ export default function GalleryClient({
   const [tab, setTab] = useState<GalleryTab>('gallery')
   const [sendingReport, setSendingReport] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
+
+  // Poll for unread messages from photographer (badge on chat button)
+  useEffect(() => {
+    let alive = true
+    function check() {
+      fetch(`/api/notes/${portfolioId}/unread`)
+        .then(r => r.json())
+        .then(d => { if (alive) setUnreadFromPhotographer(d.count ?? 0) })
+        .catch(() => {})
+    }
+    check()
+    const interval = setInterval(check, 15000)
+    return () => { alive = false; clearInterval(interval) }
+  }, [portfolioId])
 
   const visiblePhotos = activeSession === 'all'
     ? allPhotos
@@ -496,12 +511,20 @@ export default function GalleryClient({
       {/* ── Chat floating button ── */}
       <button
         type="button"
-        onClick={() => setShowChat(v => !v)}
-        className="fixed bottom-5 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-transform active:scale-95"
+        onClick={() => {
+          if (!showChat) setUnreadFromPhotographer(0)
+          setShowChat(v => !v)
+        }}
+        className="fixed bottom-5 left-4 z-40 w-12 h-12 rounded-full shadow-xl flex items-center justify-center transition-transform active:scale-95 relative"
         style={{ background: color }}
         title="הודעות לצלמת"
       >
         {showChat ? <X size={20} className="text-white" /> : <MessageCircle size={20} className="text-white" />}
+        {!showChat && unreadFromPhotographer > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-white text-[10px] font-bold px-0.5">
+            {unreadFromPhotographer}
+          </span>
+        )}
       </button>
 
       {/* ── Chat panel ── */}

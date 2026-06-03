@@ -711,7 +711,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
       {/* Tabs */}
       <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-5 w-fit">
-        {([['photos', 'תמונות'], ['selected', 'נבחרו'], ['notes', 'הערות']] as [Tab, string][]).map(([t, label]) => (
+        {([['photos', 'תמונות'], ['selected', 'נבחרו'], ['notes', 'הודעות']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
             style={tab === t
@@ -1039,8 +1039,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
       {/* ── Notes tab ── */}
       {tab === 'notes' && (
-        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between">
+        <div className="bg-white rounded-xl border border-stone-200">
+          <div className="sticky top-0 z-10 px-5 py-3 border-b border-stone-100 bg-stone-50 flex items-center justify-between rounded-t-xl">
             <h3 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">הודעות עם הלקוחה</h3>
             <Link
               href={`/dashboard/messages?portfolio=${portfolio.id}`}

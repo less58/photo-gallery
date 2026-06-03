@@ -124,12 +124,17 @@ function MessagesPageInner() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [search, setSearch] = useState('')
   const autoSelectedRef = useRef(false)
+  const selectedIdRef = useRef<string | null>(null)
 
   const fetchSummary = useCallback((silent = false) => {
     fetch('/api/dashboard/notes/summary', { cache: 'no-store' })
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data)) setConversations(data as Conversation[])
+        if (!Array.isArray(data)) return
+        const curr = selectedIdRef.current
+        setConversations((data as Conversation[]).map(c =>
+          c.portfolioId === curr ? { ...c, unreadCount: 0 } : c
+        ))
       })
       .catch(() => {})
       .finally(() => { if (!silent) setLoading(false) })
@@ -137,16 +142,17 @@ function MessagesPageInner() {
 
   useEffect(() => {
     fetchSummary()
-    const interval = setInterval(() => fetchSummary(true), 30000)
+    const interval = setInterval(() => fetchSummary(true), 15000)
     return () => clearInterval(interval)
   }, [fetchSummary])
 
-  // Auto-select portfolio from URL param (e.g. coming from portfolio notes tab)
+  // Auto-select portfolio from URL param
   useEffect(() => {
     if (!portfolioParam || autoSelectedRef.current || loading) return
     const match = conversations.find(c => c.portfolioId === portfolioParam)
     if (!match) return
     autoSelectedRef.current = true
+    selectedIdRef.current = portfolioParam
     setSelectedId(portfolioParam)
     setShowSidebar(false)
     setConversations(prev =>
@@ -155,13 +161,13 @@ function MessagesPageInner() {
   }, [portfolioParam, conversations, loading])
 
   function selectConversation(portfolioId: string) {
+    selectedIdRef.current = portfolioId
     setSelectedId(portfolioId)
     setShowSidebar(false)
     setConversations(prev =>
       prev.map(c => c.portfolioId === portfolioId ? { ...c, unreadCount: 0 } : c)
     )
   }
-
 
 
   const filtered = useMemo(() => {

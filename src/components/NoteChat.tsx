@@ -25,8 +25,9 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
   const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lastReadLengthRef = useRef(-1)
 
-  // Fetch + poll
+  // Fetch + poll every 8 seconds
   useEffect(() => {
     let alive = true
 
@@ -50,10 +51,14 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
     return () => { alive = false; clearInterval(interval) }
   }, [fetchUrl])
 
-  // Mark as read when either side opens the chat
+  // Mark messages as read on open, and again whenever new messages arrive while the chat is open
   useEffect(() => {
-    fetch(fetchUrl, { method: 'PATCH' }).catch(() => {})
-  }, [fetchUrl])
+    if (loading) return
+    if (notes.length > lastReadLengthRef.current) {
+      fetch(fetchUrl, { method: 'PATCH' }).catch(() => {})
+      lastReadLengthRef.current = notes.length
+    }
+  }, [notes.length, loading, fetchUrl])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -78,7 +83,10 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
       })
       const data = await res.json()
       if (res.ok && data.id) {
-        setNotes(prev => [...prev, data as Note])
+        setNotes(prev => {
+          lastReadLengthRef.current = prev.length + 1
+          return [...prev, data as Note]
+        })
         setMessage('')
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
         onSend?.()
@@ -134,6 +142,7 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
           value={message}
           onChange={e => { setMessage(e.target.value); autoResize() }}
           onKeyDown={e => {
+            if (e.nativeEvent.isComposing) return
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend() }
           }}
           placeholder="כתבי הודעה... (Enter לשליחה)"
