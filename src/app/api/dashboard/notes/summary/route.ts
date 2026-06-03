@@ -20,7 +20,7 @@ export async function GET() {
 
   const { data: portfolios } = await admin
     .from('portfolios')
-    .select('id, title, client_email')
+    .select('id, title, client_email, is_done')
     .eq('photographer_id', ph.id)
     .order('created_at', { ascending: false })
 
@@ -45,14 +45,17 @@ export async function GET() {
         portfolioId: p.id,
         portfolioTitle: p.title,
         clientEmail: p.client_email,
+        isDone: !!(p as { is_done?: boolean }).is_done,
         unreadCount,
         lastMessage: lastNote?.message?.slice(0, 80) ?? null,
         lastMessageAt: lastNote?.created_at ?? null,
         lastSender: lastNote?.sender ?? null,
       }
     })
-    .filter(s => s.lastMessage !== null || s.unreadCount > 0)
+    // Active portfolios always shown; completed only if they have messages
+    .filter(s => !s.isDone || s.lastMessage !== null)
     .sort((a, b) => {
+      // Unread first within same isDone group
       if (a.unreadCount > 0 && b.unreadCount === 0) return -1
       if (b.unreadCount > 0 && a.unreadCount === 0) return 1
       const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0

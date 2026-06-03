@@ -439,6 +439,53 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     })
   }
 
+  async function deleteAllNonClientSelected() {
+    const deletable = allPhotos.filter(p => !clientSelectedPhotoIds.has(p.id))
+    if (deletable.length === 0) {
+      toast('אין תמונות למחיקה — כל התמונות נבחרו ע"י הלקוחה', 'error')
+      return
+    }
+    if (!confirm(`למחוק את כל ${deletable.length} התמונות בתיק שלא נבחרו ע"י הלקוחה? לא ניתן לשחזר.`)) return
+
+    setBulkDeleting(true)
+    setDeleteProgress({ done: 0, total: deletable.length })
+
+    const allIds = deletable.map(p => p.id)
+    const CHUNK = 15
+    let totalDeleted = 0
+    let totalSkipped = 0
+    const allDeletedIds: string[] = []
+
+    for (let i = 0; i < allIds.length; i += CHUNK) {
+      const chunk = allIds.slice(i, i + CHUNK)
+      try {
+        const res = await fetch('/api/dashboard/photo', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photoIds: chunk }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          totalDeleted += data.deleted ?? 0
+          totalSkipped += data.skipped ?? 0
+          allDeletedIds.push(...(data.deletedIds ?? []))
+        } else {
+          totalSkipped += chunk.length
+        }
+      } catch {
+        totalSkipped += chunk.length
+      }
+      setDeleteProgress({ done: totalDeleted + totalSkipped, total: allIds.length })
+    }
+
+    const delSet = new Set<string>(allDeletedIds)
+    setSessions(prev => prev.map(s => ({ ...s, photos: (s.photos || []).filter(p => !delSet.has(p.id)) })))
+    toast(`${totalDeleted} תמונות נמחקו${totalSkipped > 0 ? ` · ${totalSkipped} דולגו` : ''}`)
+    exitSelectionMode()
+    setDeleteProgress(null)
+    setBulkDeleting(false)
+  }
+
   async function bulkDeleteSelected() {
     if (selectedPhotoIds.size === 0 || bulkDeleting) return
     if (!confirm(`למחוק ${selectedPhotoIds.size} תמונות? לא ניתן לשחזר.`)) return
@@ -717,6 +764,12 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                             {blocked > 0 ? `מחק ${deletable}` : `מחק ${selectedPhotoIds.size}`}
                           </button>
                         )}
+                        <button type="button" onClick={() => void deleteAllNonClientSelected()}
+                          disabled={bulkDeleting}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-400/40 text-red-300 hover:bg-red-600 hover:text-white hover:border-transparent text-xs font-medium transition disabled:opacity-40"
+                          title="מחק את כל התמונות בתיק שלא נבחרו ע&quot;י הלקוחה">
+                          <Trash2 size={12} /> מחק הכל
+                        </button>
                         <button type="button" onClick={exitSelectionMode}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-white/70 hover:text-white text-xs transition">
                           <X size={13} /> ביטול
