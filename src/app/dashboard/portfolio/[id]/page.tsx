@@ -53,6 +53,12 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
         brand_color: String(photographer.brand_color ?? '#D4736A'),
         watermark_url: (photographer.watermark_url as string) ?? null,
         watermark_public_id: (photographer.watermark_public_id as string) ?? null,
+        watermark_type: (photographer.watermark_type as string) ?? 'image',
+        watermark_text: (photographer.watermark_text as string) ?? null,
+        watermark_opacity: (photographer.watermark_opacity as number) ?? 30,
+        watermark_position: (photographer.watermark_position as string) ?? 'south_east',
+        watermark_font_size: (photographer.watermark_font_size as number) ?? 80,
+        watermark_color: (photographer.watermark_color as string) ?? '#ffffff',
         send_client_emails: (photographer.send_client_emails as boolean) ?? false,
       }}
     />

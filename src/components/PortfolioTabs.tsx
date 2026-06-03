@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
 import { useUpload } from '@/context/UploadContext'
@@ -11,6 +11,9 @@ import { useUpload } from '@/context/UploadContext'
 type Photographer = {
   id: string; name: string; logo_url: string | null
   brand_color: string; watermark_url: string | null; watermark_public_id: string | null
+  watermark_type?: string | null; watermark_text?: string | null
+  watermark_opacity?: number | null; watermark_position?: string | null
+  watermark_font_size?: number | null; watermark_color?: string | null
   send_client_emails: boolean
 }
 type Props = {
@@ -50,9 +53,37 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [editingQuota, setEditingQuota] = useState(false)
   const [quotaDraft, setQuotaDraft] = useState(String(portfolio.quota))
   const [savingQuota, setSavingQuota] = useState(false)
+  const [lightboxPhoto, setLightboxPhoto] = useState<Photo | null>(null)
   const creatingSessionRef = useRef(false)
 
   useEffect(() => { setSiteOrigin(window.location.origin) }, [])
+
+  const moveLightbox = useCallback((dir: -1 | 1) => {
+    setLightboxPhoto(current => {
+      if (!current) return null
+      const photos = sessions.flatMap(s => s.photos || [])
+      const idx = photos.findIndex(p => p.id === current.id)
+      if (idx < 0) return current
+      const next = (idx + dir + photos.length) % photos.length
+      return photos[next]
+    })
+  }, [sessions])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!lightboxPhoto) return
+      if (e.key === 'Escape') setLightboxPhoto(null)
+      if (e.key === 'ArrowRight') moveLightbox(1)
+      if (e.key === 'ArrowLeft') moveLightbox(-1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [lightboxPhoto, moveLightbox])
+
+  useEffect(() => {
+    document.body.style.overflow = lightboxPhoto ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [lightboxPhoto])
 
   // Always fetch fresh data from API on mount (bypasses any Next.js router/server cache)
   useEffect(() => {
@@ -196,7 +227,15 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       const fd = new FormData()
       fd.append('file', resized)
       fd.append('folder', `portfolios/${portfolio.id}`)
-      if (photographer.watermark_public_id) fd.append('watermarkPublicId', photographer.watermark_public_id)
+      if (photographer.watermark_type === 'text' && photographer.watermark_text) {
+        fd.append('watermarkText', photographer.watermark_text)
+        fd.append('watermarkOpacity', String(photographer.watermark_opacity ?? 30))
+        fd.append('watermarkPosition', photographer.watermark_position ?? 'south_east')
+        fd.append('watermarkFontSize', String(photographer.watermark_font_size ?? 80))
+        fd.append('watermarkColor', photographer.watermark_color ?? '#ffffff')
+      } else if (photographer.watermark_public_id) {
+        fd.append('watermarkPublicId', photographer.watermark_public_id)
+      }
 
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
       if (!uploadRes.ok) {
@@ -602,8 +641,10 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                     const isSelected = selectedPhotoIds.has(photo.id)
                     const isDeleting = deletingPhoto === photo.id
                     return (
-                      <div key={photo.id} className="aspect-square rounded-md overflow-hidden bg-stone-100 relative group"
-                        style={sel ? { outline: `2px solid ${STATUS_COLOR[sel.status]}`, outlineOffset: '-2px' } : undefined}>
+                      <div key={photo.id}
+                        className="aspect-square rounded-md overflow-hidden bg-stone-100 relative group cursor-pointer"
+                        style={sel ? { outline: `2px solid ${STATUS_COLOR[sel.status]}`, outlineOffset: '-2px' } : undefined}
+                        onClick={() => setLightboxPhoto(photo)}>
                         {(photo.thumbnail_url || photo.url) ? (
                           <Image
                             src={photo.thumbnail_url || photo.url}
@@ -623,6 +664,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                           </div>
                         )}
 
+                        {/* Zoom hint on hover */}
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                          <ZoomIn size={14} className="text-white drop-shadow" />
+                        </div>
+
                         {/* Photo name on hover */}
                         {photo.name && (
                           <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[8px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
@@ -634,8 +680,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                         <button
                           type="button"
                           disabled={isDeleting}
-                          onClick={() => deletePhoto(photo.id)}
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded flex items-center justify-center transition-opacity ${isSelected ? 'opacity-0 group-hover:opacity-60 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100'}`}
+                          onClick={e => { e.stopPropagation(); deletePhoto(photo.id) }}
+                          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded flex items-center justify-center transition-opacity z-10 ${isSelected ? 'opacity-0 group-hover:opacity-60 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100'}`}
                           style={{ background: 'rgba(0,0,0,0.6)' }}
                           title={isSelected ? 'נבחרה על ידי הלקוחה' : 'מחק תמונה'}
                         >
@@ -677,14 +723,18 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
               {approvedPhotos.map((photo, i) => (
                 <div key={photo.id} className="flex flex-col gap-1">
-                  <div className="aspect-square rounded-lg overflow-hidden relative bg-stone-100 group"
-                    style={{ outline: `2px solid ${color}`, outlineOffset: '-2px' }}>
+                  <div className="aspect-square rounded-lg overflow-hidden relative bg-stone-100 group cursor-pointer"
+                    style={{ outline: `2px solid ${color}`, outlineOffset: '-2px' }}
+                    onClick={() => setLightboxPhoto(photo)}>
                     {(photo.thumbnail_url || photo.url) && (
                       <Image src={photo.thumbnail_url || photo.url} alt="" fill unoptimized className="object-cover" />
                     )}
                     <div className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
                       style={{ background: color }}>
                       <Check size={10} className="text-white" />
+                    </div>
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <ZoomIn size={16} className="text-white drop-shadow" />
                     </div>
                     <div className="absolute inset-x-0 bottom-0 text-center text-white text-[9px] font-medium bg-black/50 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity px-0.5 truncate">
                       {i + 1}
@@ -739,6 +789,50 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
           const file = e.target.files?.[0]
           if (file) { uploadCover(file); e.target.value = '' }
         }} />
+
+      {/* Lightbox */}
+      {lightboxPhoto && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxPhoto(null)}>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); moveLightbox(-1) }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10">
+            <ChevronLeft size={28} />
+          </button>
+
+          <div className="relative w-full h-full flex items-center justify-center p-14"
+            onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightboxPhoto.url}
+              alt={lightboxPhoto.name || ''}
+              className="max-w-full max-h-full object-contain rounded select-none"
+              draggable={false}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); moveLightbox(1) }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10">
+            <ChevronRight size={28} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setLightboxPhoto(null)}
+            className="absolute top-3 right-3 p-2 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors z-10">
+            <X size={20} />
+          </button>
+
+          {lightboxPhoto.name && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white/70 text-sm bg-black/50 px-4 py-1.5 rounded-full pointer-events-none">
+              {lightboxPhoto.name}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

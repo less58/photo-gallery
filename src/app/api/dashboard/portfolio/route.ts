@@ -69,9 +69,8 @@ export async function POST(req: NextRequest) {
   const ph = photographer as Record<string, unknown>
   const magicToken = crypto.randomUUID()
 
-  // Keep password_hash for DB constraint — not used for auth anymore
-  const internalPassword = crypto.randomUUID()
-  const passwordHash = await bcrypt.hash(internalPassword, 10)
+  // password_hash kept for DB constraint only — auth is via magic_token
+  const passwordHash = await bcrypt.hash(crypto.randomUUID(), 4)
 
   const { data: portfolio, error } = await admin
     .from('portfolios')

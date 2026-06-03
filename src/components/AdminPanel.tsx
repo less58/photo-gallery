@@ -88,7 +88,9 @@ export default function AdminPanel({
       body: JSON.stringify({ name: req.name, email: req.email, password }),
     })
     const created = await createRes.json()
-    if (!createRes.ok) {
+
+    const alreadyExists = createRes.status === 409
+    if (!createRes.ok && !alreadyExists) {
       setFormError(created.error || 'שגיאה באישור הבקשה')
       setApproving(null)
       return
@@ -100,7 +102,20 @@ export default function AdminPanel({
       body: JSON.stringify({ status: 'approved' }),
     })
 
-    setList(prev => [{ ...created, portfolioCount: 0, is_frozen: false }, ...prev])
+    if (!alreadyExists) {
+      setList(prev => [{ ...created, portfolioCount: 0, is_frozen: false }, ...prev])
+    }
+    setRequests(prev => prev.filter(r => r.id !== req.id))
+    setApproving(null)
+  }
+
+  async function rejectRequest(req: AccountRequest) {
+    setApproving(req.id)
+    await fetch(`/api/admin/account-request/${req.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'rejected' }),
+    })
     setRequests(prev => prev.filter(r => r.id !== req.id))
     setApproving(null)
   }
@@ -142,16 +157,27 @@ export default function AdminPanel({
                   <p className="text-stone-400 text-xs mt-0.5 truncate" dir="ltr">{req.email}</p>
                   {req.details && <p className="text-stone-500 text-xs mt-1 leading-5">{req.details}</p>}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => approveRequest(req)}
-                  disabled={approving === req.id}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-white text-xs font-semibold disabled:opacity-50"
-                  style={{ background: 'var(--brand)' }}
-                >
-                  <Check size={13} />
-                  {approving === req.id ? 'מאשרת...' : 'אישור'}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => rejectRequest(req)}
+                    disabled={approving === req.id}
+                    className="flex items-center gap-1 px-2.5 py-2 rounded-lg text-stone-400 border border-stone-200 text-xs font-semibold hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50 transition-colors"
+                  >
+                    <X size={13} />
+                    דחייה
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => approveRequest(req)}
+                    disabled={approving === req.id}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-white text-xs font-semibold disabled:opacity-50"
+                    style={{ background: 'var(--brand)' }}
+                  >
+                    <Check size={13} />
+                    {approving === req.id ? 'מאשרת...' : 'אישור'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -31,6 +31,23 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
     setCoverPreview(URL.createObjectURL(file))
   }
 
+  async function resizeCover(file: File): Promise<File> {
+    const MAX_DIM = 1200
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions)
+      if (bitmap.width <= MAX_DIM && bitmap.height <= MAX_DIM) { bitmap.close(); return file }
+      const ratio = Math.min(MAX_DIM / bitmap.width, MAX_DIM / bitmap.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(bitmap.width * ratio)
+      canvas.height = Math.round(bitmap.height * ratio)
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      bitmap.close()
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.9))
+      if (!blob) return file
+      return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })
+    } catch { return file }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -38,13 +55,16 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
       let coverUrl: string | null = null
 
       if (coverFile) {
+        const resized = await resizeCover(coverFile)
         const fd = new FormData()
-        fd.append('file', coverFile)
+        fd.append('file', resized)
         fd.append('folder', 'covers/new')
         const upRes = await fetch('/api/upload', { method: 'POST', body: fd })
         if (upRes.ok) {
           const { url } = await upRes.json()
           coverUrl = url || null
+        } else {
+          toast('שגיאה בהעלאת תמונת הכיסוי — ממשיכה ביצירת התיק', 'error')
         }
       }
 

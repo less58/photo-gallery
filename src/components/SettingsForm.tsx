@@ -12,6 +12,9 @@ type Photographer = {
   id: string; name: string; email: string
   brand_color: string; logo_url: string | null; logo_public_id: string | null
   watermark_url: string | null; watermark_public_id: string | null
+  watermark_type: string | null; watermark_text: string | null
+  watermark_opacity: number | null; watermark_position: string | null
+  watermark_font_size: number | null; watermark_color: string | null
   default_instructions: string | null
   send_client_emails: boolean
   email_provider: string | null
@@ -32,6 +35,12 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const [brandColor, setBrandColor] = useState(ph.brand_color || '#D4736A')
   const [watermarkUrl, setWatermarkUrl] = useState(ph.watermark_url)
   const [watermarkPublicId, setWatermarkPublicId] = useState(ph.watermark_public_id)
+  const [watermarkType, setWatermarkType] = useState<'image' | 'text'>((ph.watermark_type as 'image' | 'text') ?? 'image')
+  const [watermarkText, setWatermarkText] = useState(ph.watermark_text ?? '')
+  const [watermarkOpacity, setWatermarkOpacity] = useState(ph.watermark_opacity ?? 30)
+  const [watermarkPosition, setWatermarkPosition] = useState(ph.watermark_position ?? 'south_east')
+  const [watermarkFontSize, setWatermarkFontSize] = useState(ph.watermark_font_size ?? 80)
+  const [watermarkColor, setWatermarkColor] = useState(ph.watermark_color ?? '#ffffff')
   const [defaultInstructions, setDefaultInstructions] = useState(ph.default_instructions || '')
   const [senderDisplayName, setSenderDisplayName] = useState(ph.sender_display_name || ph.name || '')
   const [sendEmails, setSendEmails] = useState(ph.send_client_emails || false)
@@ -115,6 +124,12 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
         logoUrl: logoUrl || null,
         watermarkUrl: watermarkUrl || null,
         watermarkPublicId: watermarkPublicId || null,
+        watermarkType,
+        watermarkText: watermarkText || null,
+        watermarkOpacity,
+        watermarkPosition,
+        watermarkFontSize,
+        watermarkColor,
         defaultInstructions: defaultInstructions || null,
         sendClientEmails: sendEmails,
         senderDisplayName: senderDisplayName || ph.name,
@@ -226,30 +241,127 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
 
       {/* ── Watermark ── */}
       <Section title="סימן מים">
-        <p className="text-xs text-stone-400 -mt-2 mb-3">PNG עם רקע שקוף — יוחל על כל תמונה שתעלי ללקוחות</p>
-        {watermarkUrl ? (
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-lg border border-stone-100 relative"
-              style={{ backgroundImage: 'repeating-conic-gradient(#e7e5e4 0% 25%, white 0% 50%)', backgroundSize: '12px 12px' }}>
-              <Image src={watermarkUrl} alt="watermark" fill className="object-contain p-2" unoptimized />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-stone-600">סימן מים פעיל</p>
-              <button type="button" onClick={() => watermarkRef.current?.click()}
-                className="text-xs text-stone-400 hover:text-rose-500 transition underline mt-1">
-                החלפה
+        <p className="text-xs text-stone-400 -mt-2 mb-3">יוחל אוטומטית על כל תמונה שתעלי ללקוחות</p>
+
+        {/* Type tabs */}
+        <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-4 w-fit">
+          {([['image', '🖼 תמונה PNG'], ['text', 'Aa טקסט']] as const).map(([t, label]) => (
+            <button key={t} type="button" onClick={() => setWatermarkType(t)}
+              className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+              style={watermarkType === t
+                ? { background: '#fff', color: 'var(--brand)', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }
+                : { color: '#78716c' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {watermarkType === 'image' ? (
+          <>
+            {watermarkUrl ? (
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-lg border border-stone-100 relative"
+                  style={{ backgroundImage: 'repeating-conic-gradient(#e7e5e4 0% 25%, white 0% 50%)', backgroundSize: '12px 12px' }}>
+                  <Image src={watermarkUrl} alt="watermark" fill className="object-contain p-2" unoptimized />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-stone-600">סימן מים פעיל</p>
+                  <button type="button" onClick={() => watermarkRef.current?.click()}
+                    className="text-xs text-stone-400 hover:text-rose-500 transition underline mt-1">
+                    החלפה
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => watermarkRef.current?.click()} disabled={uploadingWatermark}
+                className="flex items-center gap-2 w-full px-4 py-3 rounded-lg border border-dashed border-stone-200 text-stone-400 hover:border-rose-300 hover:text-rose-400 transition text-sm">
+                <Upload size={15} />
+                {uploadingWatermark ? 'מעלה...' : 'העלי PNG שקוף'}
               </button>
-            </div>
-          </div>
+            )}
+            <input ref={watermarkRef} type="file" accept="image/png" className="hidden"
+              onChange={e => e.target.files?.[0] && uploadWatermark(e.target.files[0])} />
+          </>
         ) : (
-          <button type="button" onClick={() => watermarkRef.current?.click()} disabled={uploadingWatermark}
-            className="flex items-center gap-2 w-full px-4 py-3 rounded-lg border border-dashed border-stone-200 text-stone-400 hover:border-rose-300 hover:text-rose-400 transition text-sm">
-            <Upload size={15} />
-            {uploadingWatermark ? 'מעלה...' : 'העלי PNG שקוף'}
-          </button>
+          <div className="space-y-4">
+            <Field label="טקסט סימן המים">
+              <input value={watermarkText} onChange={e => setWatermarkText(e.target.value)}
+                className={inp} placeholder="שם הסטודיו / הצלמת" />
+            </Field>
+
+            <Field label={`שקיפות: ${watermarkOpacity}%`}>
+              <input type="range" min={5} max={70} value={watermarkOpacity}
+                onChange={e => setWatermarkOpacity(Number(e.target.value))}
+                className="w-full accent-rose-400 cursor-pointer" />
+              <div className="flex justify-between text-[10px] text-stone-300 mt-0.5">
+                <span>עדין</span><span>בולט</span>
+              </div>
+            </Field>
+
+            <div>
+              <p className="text-sm font-medium text-stone-700 mb-1.5">גודל גופן</p>
+              <div className="flex gap-1.5">
+                {([['קטן', 50], ['בינוני', 80], ['גדול', 120], ['ענק', 200]] as [string, number][]).map(([label, size]) => (
+                  <button key={size} type="button" onClick={() => setWatermarkFontSize(size)}
+                    className="flex-1 py-1.5 rounded-md border text-xs font-medium transition-all"
+                    style={watermarkFontSize === size
+                      ? { background: 'var(--brand)', color: '#fff', borderColor: 'var(--brand)' }
+                      : { borderColor: '#E7E5E4', color: '#78716C' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-stone-700 mb-2">מיקום בתמונה</p>
+              <div className="flex gap-3 items-center flex-wrap">
+                <div className="grid grid-cols-3 grid-rows-3 w-24 h-16 border-2 border-stone-200 rounded-lg overflow-hidden shrink-0" dir="ltr">
+                  {(['north_west','north','north_east','west','center','east','south_west','south','south_east'] as const).map(pos => (
+                    <button key={pos} type="button" onClick={() => setWatermarkPosition(pos)}
+                      className="flex items-center justify-center border border-stone-100 transition-colors"
+                      style={{ background: watermarkPosition === pos ? 'var(--brand)' : 'transparent' }}>
+                      {watermarkPosition === pos && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setWatermarkPosition('tiled')}
+                  className="flex-1 py-2 rounded-lg border text-xs font-medium transition-all min-w-[80px]"
+                  style={watermarkPosition === 'tiled'
+                    ? { background: 'var(--brand)', color: '#fff', borderColor: 'var(--brand)' }
+                    : { borderColor: '#E7E5E4', color: '#78716C' }}>
+                  ⊞ כיסוי מלא
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-400 mt-1.5">
+                {watermarkPosition === 'tiled' ? 'הטקסט יחזור על עצמו בכל רחבי התמונה' : 'לחצי על המרבע הרצוי בתצוגה המוקטנת'}
+              </p>
+            </div>
+
+            <Field label="צבע טקסט">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2">
+                  {(['#ffffff', '#000000', '#888888'] as const).map(c => (
+                    <button key={c} type="button" onClick={() => setWatermarkColor(c)}
+                      className="w-7 h-7 rounded-full border-2 transition-all"
+                      style={{ background: c, borderColor: watermarkColor === c ? 'var(--brand)' : '#d6d3d1' }} />
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 border border-stone-200 rounded-lg px-2 py-1 bg-white">
+                  <input type="color" value={watermarkColor} onChange={e => setWatermarkColor(e.target.value)}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0" />
+                  <span className="text-xs font-mono text-stone-500" dir="ltr">{watermarkColor}</span>
+                </div>
+              </div>
+            </Field>
+
+            {watermarkText && (
+              <div className="p-3 rounded-lg text-xs text-stone-500 leading-5 border border-stone-100 bg-stone-50">
+                <strong>תזכורת:</strong> סימן המים מוטמע בתמונה בעת ההעלאה. שינוי ההגדרות ישפיע רק על תמונות חדשות.
+              </div>
+            )}
+          </div>
         )}
-        <input ref={watermarkRef} type="file" accept="image/png" className="hidden"
-          onChange={e => e.target.files?.[0] && uploadWatermark(e.target.files[0])} />
       </Section>
 
       {/* ── Default Instructions ── */}
