@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 
@@ -13,16 +13,29 @@ async function getPortfolioSession() {
   }
 }
 
+async function checkNotDone(portfolioId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('portfolios')
+    .select('is_done')
+    .eq('id', portfolioId)
+    .single()
+  return !(data?.is_done)
+}
+
 export async function POST(req: NextRequest) {
   const session = await getPortfolioSession()
   if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
+  if (!await checkNotDone(session.portfolioId)) {
+    return Response.json({ error: 'התיק הושלם — לא ניתן לשנות בחירות' }, { status: 403 })
+  }
+
   const { photoId, status } = await req.json()
   if (!photoId || !status) return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
 
-  const supabase = await createClient()
-
-  const { error } = await supabase.from('selections').upsert({
+  const admin = createAdminClient()
+  const { error } = await admin.from('selections').upsert({
     portfolio_id: session.portfolioId,
     photo_id: photoId,
     status,
@@ -30,7 +43,6 @@ export async function POST(req: NextRequest) {
   }, { onConflict: 'portfolio_id,photo_id' })
 
   if (error) return Response.json({ error: error.message }, { status: 500 })
-
   return Response.json({ ok: true })
 }
 
@@ -38,10 +50,13 @@ export async function DELETE(req: NextRequest) {
   const session = await getPortfolioSession()
   if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
-  const { photoId } = await req.json()
+  if (!await checkNotDone(session.portfolioId)) {
+    return Response.json({ error: 'התיק הושלם — לא ניתן לשנות בחירות' }, { status: 403 })
+  }
 
-  const supabase = await createClient()
-  await supabase
+  const { photoId } = await req.json()
+  const admin = createAdminClient()
+  await admin
     .from('selections')
     .delete()
     .eq('portfolio_id', session.portfolioId)

@@ -66,7 +66,7 @@ export default function PortfolioList({
       })
       if (res.ok) {
         setPortfolios(prev => prev.map(p => p.id === id ? { ...p, is_done: !current } : p))
-        toast(!current ? 'התיק סומן כ"טופל"' : 'הסימון הוסר')
+        toast(!current ? 'התיק סומן כ"הושלם"' : 'הסימון הוסר')
       } else {
         toast('שגיאה בעדכון', 'error')
       }
@@ -159,7 +159,7 @@ export default function PortfolioList({
                       {portfolio.title}
                     </h2>
                     {portfolio.is_done && (
-                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">טופל</span>
+                      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">הושלם</span>
                     )}
                   </div>
                   <p className="text-stone-400 text-xs truncate mb-3" dir="ltr">{portfolio.client_email}</p>
@@ -185,14 +185,14 @@ export default function PortfolioList({
                   type="button"
                   onClick={() => toggleDone(portfolio.id, portfolio.is_done)}
                   disabled={togglingDone === portfolio.id}
-                  title={portfolio.is_done ? 'הסר סימון "טופל"' : 'סמן כ"טופל"'}
+                  title={portfolio.is_done ? 'הסר סימון "הושלם"' : 'סמן כ"הושלם"'}
                   className="flex items-center gap-1.5 text-xs transition-colors disabled:opacity-30 py-1"
                   style={{ color: portfolio.is_done ? '#16a34a' : '#a8a29e' }}
                 >
                   {portfolio.is_done
                     ? <CheckCircle2 size={13} />
                     : <Circle size={13} />}
-                  {togglingDone === portfolio.id ? '...' : (portfolio.is_done ? 'טופל' : 'סמן כטופל')}
+                  {togglingDone === portfolio.id ? '...' : (portfolio.is_done ? 'הושלם' : 'סמן כהושלם')}
                 </button>
                 <button
                   type="button"

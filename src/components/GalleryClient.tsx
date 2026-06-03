@@ -22,6 +22,7 @@ type Props = {
   photographerName: string
   logoUrl: string | null
   showSendButton?: boolean
+  isDone?: boolean
 }
 
 const STATUS_COLOR: Record<SelectionStatus, string> = {
@@ -36,6 +37,7 @@ export default function GalleryClient({
   sessions, allPhotos, initialSelections, quota, color,
   coverUrl, instructions, photographerName, logoUrl, portfolioTitle, portfolioId,
   showSendButton = true,
+  isDone = false,
 }: Props) {
   const toast = useToast()
   const [activeSession, setActiveSession] = useState<string | 'all'>('all')
@@ -80,6 +82,10 @@ export default function GalleryClient({
   }, [lightbox, moveLightbox])
 
   const handleMark = useCallback(async (photoId: string, status: SelectionStatus | null) => {
+    if (isDone) {
+      toast('התיק הושלם על ידי הצלמת — לא ניתן לשנות בחירות', 'error')
+      return
+    }
     if (status === 'approved') {
       const currentCount = Object.values(selections).filter(s => s === 'approved').length
       const isCurrentlyApproved = selections[photoId] === 'approved'
@@ -100,7 +106,7 @@ export default function GalleryClient({
     } else {
       await fetch('/api/selections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photoId, status }) })
     }
-  }, [selections, quota, toast])
+  }, [selections, quota, toast, isDone])
 
   const handleToggleCompare = useCallback((photoId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -295,6 +301,21 @@ export default function GalleryClient({
         </div>
       )}
 
+      {/* ── Completed banner ── */}
+      {isDone && (
+        <div className="max-w-7xl mx-auto px-4 pt-4">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border text-sm"
+            style={{ background: 'rgba(0,0,0,0.45)', borderColor: 'rgba(255,255,255,0.15)' }}>
+            <span className="text-xl shrink-0">🔒</span>
+            <p className="text-white/80 leading-snug">
+              <span className="font-semibold text-white">הצלמת סיימה לטפל בתיק שלך</span>
+              <br />
+              <span className="text-white/60 text-xs">לא ניתן לשנות בחירת תמונות</span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Gallery grid ── */}
       {tab === 'gallery' && (
         <div ref={galleryRef} className="max-w-7xl mx-auto px-3 py-6">
@@ -350,6 +371,7 @@ export default function GalleryClient({
                       )}
 
                       {/* Action buttons - always visible on mobile, hover on desktop */}
+                      {!isDone && (
                       <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-3 pt-6
                         opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                         style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
@@ -380,6 +402,7 @@ export default function GalleryClient({
                           <GitCompare size={14} />
                         </button>
                       </div>
+                      )}
                     </div>
                   </div>
                 )
