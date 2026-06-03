@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Square } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Square, LayoutGrid } from 'lucide-react'
 import NoteChat from './NoteChat'
+import CollageTab from './CollageTab'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
 import { useUpload } from '@/context/UploadContext'
@@ -26,7 +27,7 @@ type Props = {
   photographer: Photographer
   isFrozen?: boolean
 }
-type Tab = 'photos' | 'selected' | 'notes'
+type Tab = 'photos' | 'selected' | 'notes' | 'collages'
 
 const STATUS_COLOR: Record<string, string> = {
   approved: '#22C55E',
@@ -710,8 +711,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-5 w-fit">
-        {([['photos', 'תמונות'], ['selected', 'נבחרו'], ['notes', 'הודעות']] as [Tab, string][]).map(([t, label]) => (
+      <div className="flex gap-1 bg-stone-100 p-1 rounded-lg mb-5 w-fit flex-wrap">
+        {([['photos', 'תמונות'], ['selected', 'נבחרו'], ['notes', 'הודעות'], ['collages', 'קולאג׳ים']] as [Tab, string][]).map(([t, label]) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
             style={tab === t
@@ -722,6 +723,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                 style={{ background: color }}>{approvedPhotos.length}</span>
             )}
             {t === 'notes' && <MessageCircle size={12} className="inline mr-1 mb-0.5" />}
+            {t === 'collages' && <LayoutGrid size={12} className="inline mr-1 mb-0.5" />}
             {label}
           </button>
         ))}
@@ -1062,6 +1064,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             />
           </div>
         </div>
+      )}
+
+      {/* ── Collages tab ── */}
+      {tab === 'collages' && (
+        <CollageTab portfolioId={portfolio.id} color={color} />
       )}
 
       <input ref={fileRef} type="file" multiple accept="image/*" className="hidden"

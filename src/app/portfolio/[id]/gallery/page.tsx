@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import GalleryClient from '@/components/GalleryClient'
-import type { Photo } from '@/lib/types'
+import type { Photo, Collage } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +40,12 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
     .select('*')
     .eq('portfolio_id', id)
 
+  const { data: collagesData } = await admin
+    .from('collages')
+    .select('*')
+    .eq('portfolio_id', id)
+    .order('created_at', { ascending: false })
+
   const ph = (portfolio.photographer ?? {}) as Record<string, unknown>
 
   const allSessions = (rawSessions || []).map(s => ({
@@ -64,6 +70,7 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       logoUrl={(ph.logo_url as string) ?? null}
       showSendButton={ph.receive_selection_emails !== false}
       isDone={(portfolio.is_done as boolean) ?? false}
+      collages={(collagesData || []) as Collage[]}
     />
   )
 }

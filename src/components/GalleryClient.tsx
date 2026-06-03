@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut } from 'lucide-react'
-import type { Session, Photo, Selection, SelectionStatus } from '@/lib/types'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut, Download, LayoutGrid, Loader2 } from 'lucide-react'
+import type { Session, Photo, Selection, SelectionStatus, Collage } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
 import NoteChat from './NoteChat'
 import { useToast } from './Toast'
+import { CollagePreview, downloadCollage } from './CollageEditor'
 
 type Props = {
   sessions: Session[]
@@ -23,6 +24,7 @@ type Props = {
   logoUrl: string | null
   showSendButton?: boolean
   isDone?: boolean
+  collages?: Collage[]
 }
 
 const STATUS_COLOR: Record<SelectionStatus, string> = {
@@ -31,13 +33,14 @@ const STATUS_COLOR: Record<SelectionStatus, string> = {
   maybe: '#F59E0B',
 }
 
-type GalleryTab = 'gallery' | 'selected'
+type GalleryTab = 'gallery' | 'selected' | 'collages'
 
 export default function GalleryClient({
   sessions, allPhotos, initialSelections, quota, color,
   coverUrl, instructions, photographerName, logoUrl, portfolioTitle, portfolioId,
   showSendButton = true,
   isDone = false,
+  collages = [],
 }: Props) {
   const toast = useToast()
   const [activeSession, setActiveSession] = useState<string | 'all'>('all')
@@ -54,6 +57,18 @@ export default function GalleryClient({
   const [showChat, setShowChat] = useState(false)
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
+
+  // Collage download state
+  const [downloadingCollageId, setDownloadingCollageId] = useState<string | null>(null)
+
+  async function handleDownloadCollage(collage: Collage) {
+    setDownloadingCollageId(collage.id)
+    try { await downloadCollage(collage) } catch { /* ignore */ }
+    setDownloadingCollageId(null)
+  }
+
+  // Lightbox selection button hover state (inline style overrides Tailwind hover)
+  const [hoveredLbBtn, setHoveredLbBtn] = useState<SelectionStatus | null>(null)
 
   // Lightbox zoom/pan state
   const [lightboxZoom, setLightboxZoom] = useState(100)
@@ -331,6 +346,16 @@ export default function GalleryClient({
                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{approvedCount}</span>
               )}
             </button>
+            {collages.length > 0 && (
+              <button
+                onClick={() => setTab('collages')}
+                className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition flex items-center gap-1"
+                style={tab === 'collages' ? { background: color, color: '#fff' } : { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
+                <LayoutGrid size={11} />
+                קולאג׳ים
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{collages.length}</span>
+              </button>
+            )}
 
             <div className="w-px h-4 bg-white/20 shrink-0" />
 
@@ -531,6 +556,43 @@ export default function GalleryClient({
         </div>
       )}
 
+      {/* ── Collages tab ── */}
+      {tab === 'collages' && (
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {collages.length === 0 ? (
+            <div className="text-center py-20 text-white/30">
+              <LayoutGrid size={36} strokeWidth={1.2} className="mx-auto mb-3 opacity-40" />
+              <p>אין קולאג׳ים עדיין</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {collages.map(collage => (
+                <div key={collage.id} className="rounded-2xl overflow-hidden bg-stone-900 border border-white/10">
+                  <CollagePreview collage={collage} className="w-full" />
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">{collage.name}</p>
+                      <p className="text-xs text-white/40">{collage.cells.length} תמונות</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadCollage(collage)}
+                      disabled={downloadingCollageId === collage.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+                      style={{ background: color, color: '#fff' }}
+                    >
+                      {downloadingCollageId === collage.id
+                        ? <><Loader2 size={12} className="animate-spin" /> מוריד...</>
+                        : <><Download size={12} /> הורד</>}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Lightbox ── */}
       {lightbox && (
         <div
@@ -603,13 +665,23 @@ export default function GalleryClient({
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 z-10">
               {(['approved', 'maybe', 'rejected'] as SelectionStatus[]).map(s => {
                 const blocked = s === 'approved' && isApproveBlocked && selections[lightbox.id] !== 'approved'
+                const isSelected = selections[lightbox.id] === s
+                const isHovered = hoveredLbBtn === s && !blocked
                 return (
                   <button key={s} type="button"
                     disabled={blocked}
-                    onClick={() => { handleMark(lightbox.id, selections[lightbox.id] === s ? null : s); setLightbox(null) }}
-                    className="w-11 h-11 rounded-full flex items-center justify-center text-white transition-all active:scale-90 shadow-xl disabled:opacity-40"
-                    style={{ background: selections[lightbox.id] === s ? STATUS_COLOR[s] : 'rgba(255,255,255,0.15)' }}>
-                    {s === 'approved' ? <Check size={18} /> : s === 'rejected' ? <X size={18} /> : <HelpCircle size={18} />}
+                    onClick={() => { handleMark(lightbox.id, isSelected ? null : s); setLightbox(null) }}
+                    onMouseEnter={() => setHoveredLbBtn(s)}
+                    onMouseLeave={() => setHoveredLbBtn(null)}
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{
+                      background: (isSelected || isHovered) ? STATUS_COLOR[s] : 'rgba(255,255,255,0.15)',
+                      transform: isHovered ? 'scale(1.12)' : 'scale(1)',
+                      outline: isSelected ? `2px solid ${STATUS_COLOR[s]}` : 'none',
+                      outlineOffset: '3px',
+                      transition: 'background 0.15s ease, transform 0.15s ease',
+                    }}>
+                    {s === 'approved' ? <Check size={20} /> : s === 'rejected' ? <X size={20} /> : <HelpCircle size={20} />}
                   </button>
                 )
               })}
