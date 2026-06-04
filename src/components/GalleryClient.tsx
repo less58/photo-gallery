@@ -623,28 +623,45 @@ export default function GalleryClient({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {albums.map(album => (
+              {albums.map(album => {
+                const coverUrl = album.image_urls?.[0]
+                  ? album.image_urls[0].replace('/upload/', '/upload/w_600,h_400,c_fill,q_auto,f_jpg/')
+                  : null
+                return (
                 <button
                   key={album.id}
                   type="button"
                   onClick={() => setViewingAlbum(album)}
                   className="group text-right rounded-2xl overflow-hidden bg-stone-900 border border-white/10 hover:border-white/25 transition-all hover:scale-[1.02]"
                 >
-                  <div className="aspect-[3/2] flex items-center justify-center"
-                    style={{ background: 'linear-gradient(135deg, #2d1b00, #1a0f00)' }}>
-                    <BookOpen size={40} className="text-amber-400/60" strokeWidth={1} />
+                  <div className="aspect-[3/2] overflow-hidden bg-stone-800">
+                    {coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={coverUrl}
+                        alt={album.name}
+                        className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-300"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg, #2d1b00, #1a0f00)' }}>
+                        <BookOpen size={40} className="text-amber-400/60" strokeWidth={1} />
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
                     <div>
                       <p className="text-sm font-medium text-white group-hover:text-amber-200 transition-colors">{album.name}</p>
-                      <p className="text-xs text-white/40">{album.page_count} עמודים</p>
+                      <p className="text-xs text-white/40">{album.image_urls?.length ?? album.page_count} תמונות</p>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-white/10 group-hover:bg-amber-400/20 flex items-center justify-center transition-colors">
                       <ChevronLeft size={16} className="text-white/50 group-hover:text-amber-300 transition-colors" />
                     </div>
                   </div>
                 </button>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

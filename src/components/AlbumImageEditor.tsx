@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { X, Upload, GripVertical, Loader2, Save, AlertCircle } from 'lucide-react'
+import type { Album } from '@/lib/types'
 
 type SignData = { signature: string; timestamp: number; apiKey: string; cloudName: string; folder: string }
 
@@ -19,9 +20,9 @@ type Props = {
   color: string
   onSave: (name: string, imageUrls: string[]) => Promise<void>
   onClose: () => void
+  editAlbum?: Album
 }
 
-// XHR upload — gives real upload progress via xhr.upload.onprogress
 function uploadXHR(
   file: File,
   sig: SignData,
@@ -42,7 +43,6 @@ function uploadXHR(
     xhr.upload.onprogress = e => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
     }
-
     xhr.onload = () => {
       xhrRef.current = null
       if (xhr.status >= 200 && xhr.status < 300) {
@@ -57,7 +57,6 @@ function uploadXHR(
         } catch { reject(new Error(`שגיאת Cloudinary (${xhr.status})`)) }
       }
     }
-
     xhr.onerror = () => { xhrRef.current = null; reject(new Error('שגיאת רשת')) }
     xhr.onabort = () => { xhrRef.current = null; reject(new Error('בוטל')) }
 
@@ -66,9 +65,23 @@ function uploadXHR(
   })
 }
 
-export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }: Props) {
-  const [albumName, setAlbumName] = useState('אלבום חדש')
-  const [images, setImages] = useState<ImageItem[]>([])
+export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, editAlbum }: Props) {
+  const isEdit = !!editAlbum
+
+  const [albumName, setAlbumName] = useState(editAlbum?.name ?? 'אלבום חדש')
+  const [images, setImages] = useState<ImageItem[]>(() => {
+    if (editAlbum?.image_urls) {
+      return editAlbum.image_urls.map((url, i) => ({
+        id: `existing_${i}_${url.slice(-20)}`,
+        name: `תמונה ${i + 1}`,
+        url,
+        uploading: false,
+        progress: 100,
+        error: null,
+      }))
+    }
+    return []
+  })
   const [currentUpload, setCurrentUpload] = useState<{ name: string; index: number; total: number; progress: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
@@ -129,15 +142,11 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
         ))
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'שגיאה'
-        if (msg !== 'בוטל') {
-          setImages(prev => prev.map(img =>
-            img.id === item.id ? { ...img, error: msg, uploading: false } : img
-          ))
-        } else {
-          setImages(prev => prev.map(img =>
-            img.id === item.id ? { ...img, uploading: false } : img
-          ))
-        }
+        setImages(prev => prev.map(img =>
+          img.id === item.id
+            ? msg === 'בוטל' ? { ...img, uploading: false } : { ...img, error: msg, uploading: false }
+            : img
+        ))
       }
     }
 
@@ -180,7 +189,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
   function handleClose() {
     cancelRef.current = true
     xhrRef.current?.abort()
-    if (images.length > 0) {
+    if (!isEdit && images.length > 0) {
       if (!confirm('לצאת בלי לשמור? האלבום לא יישמר')) return
     }
     onClose()
@@ -258,7 +267,6 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
             <button
               onClick={() => { cancelRef.current = true; xhrRef.current?.abort() }}
               className="text-stone-400 hover:text-red-500 transition shrink-0 p-1"
-              title="בטל העלאה"
             >
               <X size={14} />
             </button>
@@ -279,7 +287,6 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
                   onDrop={e => onDropItem(e, idx)}
                   onDragEnd={() => { setDraggedIdx(null); setDropTargetIdx(null) }}
                 >
-                  {/* Image cell — fixed height, object-contain so full image is visible */}
                   <div
                     className={`h-20 rounded-lg overflow-hidden bg-stone-100 border-2 relative select-none transition-all ${
                       dropTargetIdx === idx && draggedIdx !== idx ? 'border-rose-400 scale-105' : 'border-transparent'
@@ -287,12 +294,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
                   >
                     {img.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={img.url}
-                        alt=""
-                        className="w-full h-full object-contain"
-                        draggable={false}
-                      />
+                      <img src={img.url} alt="" className="w-full h-full object-contain" draggable={false} />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         {img.error
@@ -302,12 +304,10 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
                       </div>
                     )}
 
-                    {/* Page number badge */}
                     <div className="absolute bottom-0.5 left-0.5 bg-black/50 text-white text-[9px] rounded px-1 leading-4 pointer-events-none">
                       {idx + 1}
                     </div>
 
-                    {/* Remove button */}
                     {img.url && (
                       <button
                         onClick={() => removeImage(img.id)}
@@ -317,14 +317,12 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
                       </button>
                     )}
 
-                    {/* Upload progress overlay */}
                     {img.uploading && (
                       <div className="absolute inset-x-0 bottom-0 h-1 bg-stone-200">
                         <div className="h-full transition-all duration-100" style={{ width: `${img.progress}%`, background: color }} />
                       </div>
                     )}
 
-                    {/* Drag handle */}
                     {img.url && (
                       <div className="absolute top-0.5 left-0.5 text-white/50 pointer-events-none">
                         <GripVertical size={11} />
@@ -332,7 +330,6 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
                     )}
                   </div>
 
-                  {/* Filename under thumbnail */}
                   <p className="text-[9px] text-stone-400 truncate text-center leading-tight px-0.5" title={img.name}>
                     {img.name}
                   </p>
@@ -366,7 +363,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose }
               ? <Loader2 size={14} className="animate-spin" />
               : <Save size={14} />
             }
-            שמור אלבום {uploadedCount > 0 ? `(${uploadedCount})` : ''}
+            {isEdit ? 'שמור שינויים' : `שמור אלבום`} {uploadedCount > 0 ? `(${uploadedCount})` : ''}
           </button>
         </div>
       </div>

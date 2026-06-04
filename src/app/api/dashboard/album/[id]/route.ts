@@ -15,11 +15,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!session) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
   const { id } = await params
-  const { name } = await req.json()
-  if (!name?.trim()) return Response.json({ error: 'חסר שם' }, { status: 400 })
+  const body = await req.json()
+
+  const update: Record<string, unknown> = {}
+  if (body.name?.trim()) update.name = body.name.trim()
+  if (Array.isArray(body.imageUrls)) {
+    update.image_urls = body.imageUrls
+    update.page_count = body.pageCount ?? body.imageUrls.length
+  }
+
+  if (Object.keys(update).length === 0) return Response.json({ error: 'אין מה לעדכן' }, { status: 400 })
 
   const admin = createAdminClient()
-  const { data, error } = await admin.from('albums').update({ name: name.trim() }).eq('id', id).select().single()
+  const { data, error } = await admin.from('albums').update(update).eq('id', id).select().single()
   if (error) return Response.json({ error: error.message }, { status: 500 })
   return Response.json(data)
 }

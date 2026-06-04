@@ -5,7 +5,10 @@ import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Download, Loader2 } from
 import type { Album } from '@/lib/types'
 
 function getPageUrl(album: Album, idx: number): string {
-  if (album.image_urls?.length) return album.image_urls[idx] ?? ''
+  if (album.image_urls?.length) {
+    const url = album.image_urls[idx] ?? ''
+    return url.replace('/upload/', '/upload/w_1800,q_auto:best,f_jpg/')
+  }
   const page = idx + 1
   return (album.pdf_url ?? '').replace('/upload/', `/upload/pg_${page},f_jpg,w_1800,q_auto:best/`)
 }
@@ -16,6 +19,10 @@ type Props = {
   allowDownload?: boolean
 }
 
+type AnimState = 'idle' | 'exiting' | 'entering'
+
+const EXIT_MS = 220
+
 export default function AlbumViewer({ album, onClose, allowDownload = false }: Props) {
   const totalPages = album.image_urls?.length ?? album.page_count
   const isImageAlbum = !!album.image_urls?.length
@@ -24,37 +31,61 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
   const [zoom, setZoom] = useState(1)
   const [loaded, setLoaded] = useState(false)
   const [downloading, setDownloading] = useState(false)
-  // Slide animation
-  const [animating, setAnimating] = useState(false)
-  const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next')
-  const animTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // In RTL (Hebrew): left = next page, right = prev page
+  const [animState, setAnimState] = useState<AnimState>('idle')
+  const [animDir, setAnimDir] = useState<'next' | 'prev'>('next')
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enteringRef = useRef(false)
+
+  // Preload adjacent images for instant navigation
+  useEffect(() => {
+    const toPreload = [idx - 1, idx + 1].filter(i => i >= 0 && i < totalPages)
+    toPreload.forEach(i => {
+      const img = new window.Image()
+      img.src = getPageUrl(album, i)
+    })
+  }, [idx, album, totalPages])
+
   const goNext = useCallback(() => {
-    if (animating || idx >= totalPages - 1) return
-    setSlideDir('next')
-    setAnimating(true)
-    setLoaded(false)
-    animTimeout.current = setTimeout(() => {
+    if (animState !== 'idle' || idx >= totalPages - 1) return
+    setAnimDir('next')
+    setAnimState('exiting')
+    exitTimerRef.current = setTimeout(() => {
       setIdx(i => i + 1)
-      setAnimating(false)
-    }, 180)
-  }, [animating, idx, totalPages])
+      setAnimState('entering')
+    }, EXIT_MS)
+  }, [animState, idx, totalPages])
 
   const goPrev = useCallback(() => {
-    if (animating || idx <= 0) return
-    setSlideDir('prev')
-    setAnimating(true)
-    setLoaded(false)
-    animTimeout.current = setTimeout(() => {
+    if (animState !== 'idle' || idx <= 0) return
+    setAnimDir('prev')
+    setAnimState('exiting')
+    exitTimerRef.current = setTimeout(() => {
       setIdx(i => i - 1)
-      setAnimating(false)
-    }, 180)
-  }, [animating, idx])
+      setAnimState('entering')
+    }, EXIT_MS)
+  }, [animState, idx])
 
+  // 'entering' → 'idle' via double-RAF so CSS transition plays from offset to center
   useEffect(() => {
-    return () => { if (animTimeout.current) clearTimeout(animTimeout.current) }
-  }, [])
+    if (animState !== 'entering') return
+    enteringRef.current = true
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        if (enteringRef.current) {
+          setAnimState('idle')
+          enteringRef.current = false
+        }
+      })
+      return () => cancelAnimationFrame(raf2)
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      enteringRef.current = false
+    }
+  }, [animState])
+
+  useEffect(() => () => { if (exitTimerRef.current) clearTimeout(exitTimerRef.current) }, [])
 
   useEffect(() => {
     setLoaded(false)
@@ -64,8 +95,8 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft') goNext()   // RTL: ← = forward
-      if (e.key === 'ArrowRight') goPrev()  // RTL: → = back
+      if (e.key === 'ArrowLeft') goNext()
+      if (e.key === 'ArrowRight') goPrev()
       if ((e.ctrlKey || e.metaKey) && e.key === '=') { e.preventDefault(); setZoom(z => Math.min(3, +(z + 0.2).toFixed(1))) }
       if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); setZoom(z => Math.max(0.3, +(z - 0.2).toFixed(1))) }
     }
@@ -105,10 +136,30 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
 
   const currentUrl = getPageUrl(album, idx)
 
-  // Slide translate direction
-  const translateX = animating
-    ? (slideDir === 'next' ? '-6%' : '6%')
-    : '0%'
+  // Flip-style animation: exit slides out, enter slides in from opposite side
+  const imageStyle: React.CSSProperties = (() => {
+    switch (animState) {
+      case 'exiting':
+        return {
+          transform: `translateX(${animDir === 'next' ? '-60%' : '60%'}) scale(0.85)`,
+          opacity: 0,
+          transition: `transform ${EXIT_MS}ms cubic-bezier(0.4,0,0.2,1), opacity ${EXIT_MS}ms ease`,
+        }
+      case 'entering':
+        return {
+          transform: `translateX(${animDir === 'next' ? '50%' : '-50%'}) scale(0.9)`,
+          opacity: 0,
+          transition: 'none',
+        }
+      case 'idle':
+        return {
+          transform: `translateX(0) scale(${zoom})`,
+          opacity: loaded ? 1 : 0.25,
+          transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.28s ease',
+          transformOrigin: 'center center',
+        }
+    }
+  })()
 
   return (
     <div
@@ -122,7 +173,6 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
         style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Album name + page counter */}
         <div className="flex items-center gap-3 min-w-0">
           <span className="font-semibold text-white text-sm truncate">{album.name}</span>
           <span className="text-white/40 text-xs shrink-0 tabular-nums">
@@ -130,26 +180,22 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
           </span>
         </div>
 
-        {/* Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Zoom */}
+          {/* Zoom controls */}
           <div className="flex items-center gap-0.5 bg-white/10 rounded-lg px-1">
             <button onClick={() => setZoom(z => Math.max(0.3, +(z - 0.2).toFixed(1)))}
-              className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white rounded transition"
-              title="הקטן">
+              className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white rounded transition">
               <ZoomOut size={14} />
             </button>
             <span className="text-white/50 text-[11px] w-9 text-center tabular-nums">
               {Math.round(zoom * 100)}%
             </span>
             <button onClick={() => setZoom(z => Math.min(3, +(z + 0.2).toFixed(1)))}
-              className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white rounded transition"
-              title="הגדל">
+              className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white rounded transition">
               <ZoomIn size={14} />
             </button>
           </div>
 
-          {/* Download */}
           {allowDownload && (
             <button
               onClick={downloadAlbum}
@@ -161,7 +207,6 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
             </button>
           )}
 
-          {/* Close */}
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center text-white/50 hover:text-white transition rounded-lg hover:bg-white/10">
             <X size={18} />
           </button>
@@ -178,7 +223,7 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
           type="button"
           onClick={e => { e.stopPropagation(); goNext() }}
           disabled={idx >= totalPages - 1}
-          className="absolute left-3 z-10 w-12 h-12 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white transition disabled:opacity-15 disabled:cursor-default"
+          className="absolute left-3 z-20 w-12 h-12 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white transition disabled:opacity-15 disabled:cursor-default"
           aria-label="עמוד הבא"
         >
           <ChevronLeft size={26} />
@@ -191,12 +236,7 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
         >
           <div
             className="relative flex items-center justify-center w-full h-full"
-            style={{
-              transform: `translateX(${translateX}) scale(${zoom})`,
-              opacity: animating ? 0 : (loaded ? 1 : 0.3),
-              transition: animating ? 'opacity 0.18s ease, transform 0.18s ease' : 'opacity 0.25s ease',
-              transformOrigin: 'center center',
-            }}
+            style={imageStyle}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -208,8 +248,8 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
               className="max-w-full max-h-full object-contain rounded shadow-2xl"
               style={{ maxHeight: 'calc(100vh - 130px)' }}
             />
-            {!loaded && !animating && (
-              <div className="absolute inset-0 flex items-center justify-center">
+            {!loaded && animState === 'idle' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <Loader2 size={32} className="text-white/30 animate-spin" />
               </div>
             )}
@@ -221,7 +261,7 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
           type="button"
           onClick={e => { e.stopPropagation(); goPrev() }}
           disabled={idx <= 0}
-          className="absolute right-3 z-10 w-12 h-12 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white transition disabled:opacity-15 disabled:cursor-default"
+          className="absolute right-3 z-20 w-12 h-12 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white transition disabled:opacity-15 disabled:cursor-default"
           aria-label="עמוד קודם"
         >
           <ChevronRight size={26} />
@@ -236,7 +276,11 @@ export default function AlbumViewer({ album, onClose, allowDownload = false }: P
         {Array.from({ length: Math.min(totalPages, 30) }, (_, i) => (
           <button
             key={i}
-            onClick={() => { setLoaded(false); setIdx(i) }}
+            onClick={() => {
+              if (animState !== 'idle') return
+              setLoaded(false)
+              setIdx(i)
+            }}
             className="rounded-full transition-all"
             style={{
               width: i === idx ? 20 : 6,
