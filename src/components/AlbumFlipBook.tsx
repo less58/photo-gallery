@@ -61,7 +61,7 @@ type PageProps =
   | { kind: 'spread-half'; url: string; side: 'left' | 'right' }
 
 const Page = forwardRef<HTMLDivElement, PageProps>((props, ref) => {
-  if (props.kind === 'cover' || props.kind === 'back-cover') {
+  if (props.kind !== 'spread-half') {
     return (
       <div ref={ref} className="relative overflow-hidden bg-black">
         <div className="absolute inset-0" style={{ transform: 'scaleX(-1)' }}>
@@ -71,21 +71,22 @@ const Page = forwardRef<HTMLDivElement, PageProps>((props, ref) => {
       </div>
     )
   }
+  const { url, side } = props
   return (
     <div ref={ref} className="relative overflow-hidden bg-black">
       <div className="absolute inset-0" style={{ transform: 'scaleX(-1)' }}>
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: `url(${props.url})`,
+            backgroundImage: `url(${url})`,
             backgroundRepeat: 'no-repeat',
             backgroundSize: '200% auto',
-            backgroundPosition: props.side === 'left' ? 'left center' : 'right center',
+            backgroundPosition: side === 'left' ? 'left center' : 'right center',
           }}
         />
         <div
           className="absolute inset-y-0 w-px bg-black/10"
-          style={props.side === 'left' ? { right: 0 } : { left: 0 }}
+          style={side === 'left' ? { right: 0 } : { left: 0 }}
         />
       </div>
     </div>
