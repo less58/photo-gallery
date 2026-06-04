@@ -10,6 +10,9 @@ function getAlbumThumb(album: Album): string | null {
   if (album.image_urls?.[0]) {
     return album.image_urls[0].replace('/upload/', '/upload/w_120,h_80,c_fill,q_auto,f_jpg/')
   }
+  if (album.pdf_url) {
+    return album.pdf_url.replace('/upload/', '/upload/pg_1,f_jpg,w_120,h_80,c_fill,q_auto/')
+  }
   return null
 }
 

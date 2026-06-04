@@ -626,7 +626,9 @@ export default function GalleryClient({
               {albums.map(album => {
                 const coverUrl = album.image_urls?.[0]
                   ? album.image_urls[0].replace('/upload/', '/upload/w_600,h_400,c_fill,q_auto,f_jpg/')
-                  : null
+                  : album.pdf_url
+                    ? album.pdf_url.replace('/upload/', '/upload/pg_1,f_jpg,w_600,h_400,c_fill,q_auto/')
+                    : null
                 return (
                 <button
                   key={album.id}

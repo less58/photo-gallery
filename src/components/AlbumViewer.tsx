@@ -1,8 +1,18 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, Download, Loader2 } from 'lucide-react'
 import type { Album } from '@/lib/types'
+
+const AlbumFlipBook = dynamic(() => import('./AlbumFlipBook'), {
+  ssr: false,
+  loading: () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: '#1a1208' }}>
+      <Loader2 size={32} className="text-white/40 animate-spin" />
+    </div>
+  ),
+})
 
 function getPageUrl(album: Album, idx: number): string {
   if (album.image_urls?.length) {
@@ -24,6 +34,15 @@ type AnimState = 'idle' | 'exiting' | 'entering'
 const EXIT_MS = 220
 
 export default function AlbumViewer({ album, onClose, allowDownload = false }: Props) {
+  // Image albums get the real flipbook; PDF albums use the slide viewer
+  if (album.image_urls?.length) {
+    return <AlbumFlipBook album={album} onClose={onClose} allowDownload={allowDownload} />
+  }
+
+  return <PdfViewer album={album} onClose={onClose} allowDownload={allowDownload} />
+}
+
+function PdfViewer({ album, onClose, allowDownload = false }: Props) {
   const totalPages = album.image_urls?.length ?? album.page_count
   const isImageAlbum = !!album.image_urls?.length
 
