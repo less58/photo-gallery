@@ -112,6 +112,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
   const [spreadAspect, setSpreadAspect] = useState(DEFAULT_SPREAD_ASPECT)
   const [coverAspect, setCoverAspect] = useState(DEFAULT_COVER_ASPECT)
   const thumbRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const thumbStripRef = useRef<HTMLDivElement>(null)
   const [notes, setNotes] = useState<Record<string, string>>(album.spread_notes ?? {})
   const [noteEditIndex, setNoteEditIndex] = useState<number | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
@@ -187,10 +188,15 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
     return () => window.removeEventListener('resize', calc)
   }, [spreadAspect])
 
+  // On mount: scroll strip to show first thumbnail (right edge in RTL)
+  useEffect(() => {
+    if (thumbStripRef.current) thumbStripRef.current.scrollLeft = 0
+  }, [])
+
   useEffect(() => {
     thumbRefs.current[currentImageIndex]?.scrollIntoView({
       block: 'nearest',
-      inline: 'center',
+      inline: 'nearest',
       behavior: 'smooth',
     })
   }, [currentImageIndex])
@@ -387,8 +393,8 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
         </button>
       </div>
 
-      {/* Notes bar */}
-      <div className="shrink-0 px-10 sm:px-16 py-2" dir="rtl">
+      {/* Notes bar - fixed height so the book doesn't shift when a note appears/disappears */}
+      <div className="shrink-0 px-10 sm:px-16 h-12 flex items-center" dir="rtl">
         {noteEditIndex === currentImageIndex ? (
           <div
             className="flex items-center gap-2 rounded-xl px-3 py-2 border"
@@ -448,9 +454,10 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
         ) : null}
       </div>
 
-      {/* Thumbnail strip - dir=rtl so first image (cover) is on the right, matching Hebrew book direction */}
+      {/* Thumbnail strip */}
       <div className="shrink-0 bg-black/50 px-10 sm:px-16 py-3" dir="rtl">
         <div
+          ref={thumbStripRef}
           className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
         >
@@ -485,8 +492,11 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
                   </span>
                 )}
                 {hasNote && (
-                  <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-400 flex items-center justify-center">
-                    <MessageSquare size={8} className="text-black" />
+                  <span
+                    className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full flex items-center justify-center"
+                    style={{ background: color }}
+                  >
+                    <MessageSquare size={8} className="text-white" />
                   </span>
                 )}
               </button>

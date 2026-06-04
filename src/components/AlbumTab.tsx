@@ -121,12 +121,8 @@ export default function AlbumTab({ portfolioId, color }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-stone-500">
-          {albums.length === 0 ? 'אין אלבום עדיין' : 'אלבום'}
-        </span>
-        {/* Create button only when no album exists */}
-        {albums.length === 0 && (
+      {albums.length === 0 && (
+        <div className="flex items-center justify-end">
           <button
             type="button"
             onClick={() => openEditor()}
@@ -135,8 +131,8 @@ export default function AlbumTab({ portfolioId, color }: Props) {
           >
             <Images size={14} /> צור אלבום
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {albums.length === 0 ? (
         <div className="w-full py-10 rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center gap-4 text-stone-400">
