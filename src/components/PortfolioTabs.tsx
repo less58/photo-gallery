@@ -55,6 +55,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [sendingEmail, setSendingEmail] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [showResendConfirm, setShowResendConfirm] = useState(false)
+  const [showNoEmailConfig, setShowNoEmailConfig] = useState(false)
   const [quota, setQuota] = useState(portfolio.quota)
   const [editingQuota, setEditingQuota] = useState(false)
   const [quotaDraft, setQuotaDraft] = useState(String(portfolio.quota))
@@ -162,6 +163,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       if (res.ok) {
         toast('מייל נשלח ללקוחה בהצלחה ✓')
         setEmailSent(true)
+      } else if (data.noEmailConfig) {
+        setShowNoEmailConfig(true)
       } else {
         toast(data.error || 'שגיאה בשליחת המייל', 'error')
       }
@@ -668,6 +671,30 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               ביטול
             </button>
           </div>
+        </div>
+      )}
+
+      {/* No email config warning */}
+      {showNoEmailConfig && (
+        <div className="rounded-xl px-4 py-3 mb-4 border text-sm flex items-start justify-between gap-3"
+          style={{ background: '#fff7ed', borderColor: '#fed7aa' }}>
+          <div className="flex-1">
+            <p className="font-medium text-orange-800 mb-0.5">לא ניתן לשלוח מייל</p>
+            <p className="text-orange-700 text-xs leading-relaxed">
+              לא הוגדרו פרטי שליחת מייל בהגדרות.{' '}
+              <Link href="/dashboard/settings" className="underline font-semibold">
+                עברי לדף ההגדרות
+              </Link>
+              {' '}כדי להגדיר ספק מייל (Gmail / Resend).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowNoEmailConfig(false)}
+            className="text-orange-400 hover:text-orange-600 transition shrink-0 mt-0.5"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
 

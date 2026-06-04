@@ -32,6 +32,13 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'שליחת מיילים אינה מופעלת בהגדרות' }, { status: 400 })
   }
 
+  const provider = (ph.email_provider as string) || 'gmail'
+  const hasGmail = provider === 'gmail' && ph.gmail_address && ph.gmail_app_password
+  const hasResend = provider === 'resend' && ph.resend_api_key
+  if (!hasGmail && !hasResend) {
+    return Response.json({ error: 'לא הוגדרו פרטי שליחת מייל', noEmailConfig: true }, { status: 400 })
+  }
+
   try {
     const siteUrl = req.nextUrl.origin
     const magicLink = `${siteUrl}/enter/${portfolio.magic_token}`
