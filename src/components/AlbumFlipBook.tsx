@@ -1,8 +1,6 @@
 'use client'
 
-import { useRef, useState, useEffect, forwardRef } from 'react'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const HTMLFlipBook = require('react-pageflip').HTMLFlipBook
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, X, Download, Loader2 } from 'lucide-react'
 import type { Album } from '@/lib/types'
 
@@ -10,17 +8,15 @@ function getDisplayUrl(url: string): string {
   return url.replace('/upload/', '/upload/w_1200,q_auto:best,f_jpg/')
 }
 
-/** Short paper-rustle synthesized via Web Audio — no file needed */
+/** Paper-rustle sound synthesised via Web Audio — no file needed */
 function playFlipSound() {
   try {
     const ctx = new AudioContext()
-    const duration = 0.11
-    const len = Math.floor(ctx.sampleRate * duration)
+    const len = Math.floor(ctx.sampleRate * 0.11)
     const buf = ctx.createBuffer(1, len, ctx.sampleRate)
     const d = buf.getChannelData(0)
     for (let i = 0; i < len; i++) {
-      const t = i / len
-      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.6) * 0.45
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.6) * 0.45
     }
     const src = ctx.createBufferSource()
     src.buffer = buf
@@ -31,27 +27,11 @@ function playFlipSound() {
     src.connect(filt)
     filt.connect(ctx.destination)
     src.start()
-  } catch { /* ignore – AudioContext may be blocked before user gesture */ }
+  } catch { /* AudioContext may require user gesture */ }
 }
 
-// react-pageflip requires each page to be a forwardRef component
-const FlipPage = forwardRef<HTMLDivElement, { url: string; num: number }>(
-  ({ url, num }, ref) => (
-    <div
-      ref={ref}
-      style={{ overflow: 'hidden', background: '#0d0b09', position: 'relative' }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt={`עמוד ${num}`}
-        draggable={false}
-        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-      />
-    </div>
-  )
-)
-FlipPage.displayName = 'FlipPage'
+type AnimState = 'idle' | 'exiting' | 'entering'
+const FLIP_MS = 320
 
 type Props = {
   album: Album
@@ -60,50 +40,65 @@ type Props = {
 }
 
 export default function AlbumFlipBook({ album, onClose, allowDownload = false }: Props) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const bookRef = useRef<any>(null)
-  const [currentPage, setCurrentPage] = useState(0)
+  const [idx, setIdx] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const [anim, setAnim] = useState<AnimState>('idle')
+  const [animDir, setAnimDir] = useState<'next' | 'prev'>('next')
   const [downloading, setDownloading] = useState(false)
-  const [dims, setDims] = useState({ w: 380, h: 510, portrait: true })
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enterRef = useRef(false)
 
   const imageUrls = album.image_urls ?? []
   const total = imageUrls.length
-  // Add blank last page when odd count (so two-page spread is complete)
-  const pages = total % 2 !== 0 ? [...imageUrls, null] : imageUrls
+  const urls = imageUrls.map(getDisplayUrl)
 
-  // Responsive sizing
+  // Preload adjacent images for instant flip
   useEffect(() => {
-    function calc() {
-      const vw = window.innerWidth
-      const vh = window.innerHeight - 140
-      const isMobile = vw < 640
-      if (isMobile) {
-        // Portrait single-page view
-        const w = Math.min(vw - 130, 380)
-        const h = Math.min(Math.floor(w * 1.35), vh)
-        setDims({ w: Math.min(w, Math.floor(h / 1.35)), h: Math.min(h, Math.floor(w * 1.35)), portrait: true })
-      } else {
-        // Two-page spread
-        const w = Math.min(Math.floor((vw - 200) / 2), 440)
-        const h = Math.min(Math.floor(w * 1.35), vh)
-        const fw = Math.min(w, Math.floor(h / 1.35))
-        setDims({ w: fw, h: Math.floor(fw * 1.35), portrait: false })
-      }
-    }
-    calc()
-    window.addEventListener('resize', calc)
-    return () => window.removeEventListener('resize', calc)
-  }, [])
+    [idx - 1, idx + 1].filter(i => i >= 0 && i < total).forEach(i => {
+      const img = new window.Image()
+      img.src = urls[i]
+    })
+  }, [idx, urls, total])
+
+  useEffect(() => { setLoaded(false) }, [idx])
+
+  const navigate = useCallback((dir: 'next' | 'prev') => {
+    const newIdx = dir === 'next' ? idx + 1 : idx - 1
+    if (anim !== 'idle' || newIdx < 0 || newIdx >= total) return
+    playFlipSound()
+    setAnimDir(dir)
+    setAnim('exiting')
+    timerRef.current = setTimeout(() => {
+      setIdx(newIdx)
+      setAnim('entering')
+    }, FLIP_MS)
+  }, [anim, idx, total])
+
+  // entering → idle via double-RAF so CSS transition fires from offset position
+  useEffect(() => {
+    if (anim !== 'entering') return
+    enterRef.current = true
+    const r1 = requestAnimationFrame(() => {
+      const r2 = requestAnimationFrame(() => {
+        if (enterRef.current) { setAnim('idle'); enterRef.current = false }
+      })
+      return () => cancelAnimationFrame(r2)
+    })
+    return () => { cancelAnimationFrame(r1); enterRef.current = false }
+  }, [anim])
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft') bookRef.current?.pageFlip().flipNext()
-      if (e.key === 'ArrowRight') bookRef.current?.pageFlip().flipPrev()
+      if (e.key === 'ArrowLeft') navigate('next')
+      if (e.key === 'ArrowRight') navigate('prev')
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, navigate])
 
   async function downloadAlbum() {
     if (downloading || !album.image_urls) return
@@ -127,25 +122,47 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     setDownloading(false)
   }
 
-  const visibleImageIndex = dims.portrait ? currentPage : Math.floor(currentPage / 2)
-  const totalImages = total
+  // 3D page-flip CSS — single portrait page, rotateY with perspective
+  const pageStyle: React.CSSProperties = (() => {
+    switch (anim) {
+      case 'exiting':
+        return {
+          transform: `perspective(1400px) rotateY(${animDir === 'next' ? '-95deg' : '95deg'})`,
+          opacity: 0,
+          transition: `transform ${FLIP_MS}ms cubic-bezier(0.55,0,0.8,0.4), opacity ${FLIP_MS * 0.5}ms ease`,
+          transformOrigin: animDir === 'next' ? 'left center' : 'right center',
+        }
+      case 'entering':
+        return {
+          transform: `perspective(1400px) rotateY(${animDir === 'next' ? '95deg' : '-95deg'})`,
+          opacity: 0,
+          transition: 'none',
+          transformOrigin: animDir === 'next' ? 'right center' : 'left center',
+        }
+      case 'idle':
+        return {
+          transform: 'perspective(1400px) rotateY(0deg)',
+          opacity: loaded ? 1 : 0.25,
+          transition: `transform ${FLIP_MS}ms cubic-bezier(0.2,0,0.4,1), opacity 0.2s ease`,
+          transformOrigin: 'center center',
+        }
+    }
+  })()
 
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col select-none"
-      style={{ background: '#1a1208' }}
+      style={{ background: '#1c1309' }}
       dir="rtl"
     >
-      {/* Header */}
+      {/* ── Header ── */}
       <div
         className="shrink-0 flex items-center justify-between px-5 py-3 gap-4"
         style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
       >
         <div className="flex items-center gap-3 min-w-0">
           <span className="font-semibold text-white text-sm truncate">{album.name}</span>
-          <span className="text-white/40 text-xs tabular-nums shrink-0">
-            {visibleImageIndex + 1} / {totalImages}
-          </span>
+          <span className="text-white/40 text-xs tabular-nums shrink-0">{idx + 1} / {total}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {allowDownload && (
@@ -167,82 +184,96 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
         </div>
       </div>
 
-      {/* Flipbook */}
-      <div className="flex-1 flex items-center justify-center gap-3 overflow-hidden px-2" dir="ltr">
-        {/* Prev arrow (left side in LTR context = prev in RTL reading) */}
+      {/* ── Page area ── */}
+      <div className="flex-1 flex items-center justify-center gap-4 overflow-hidden px-3">
+
+        {/* LEFT arrow = NEXT (RTL) */}
         <button
           type="button"
-          onClick={() => bookRef.current?.pageFlip().flipPrev()}
-          disabled={currentPage <= 0}
+          onClick={() => navigate('next')}
+          disabled={idx >= total - 1}
           className="shrink-0 w-12 h-12 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white transition disabled:opacity-15"
-          aria-label="עמוד קודם"
+          aria-label="עמוד הבא"
         >
           <ChevronLeft size={26} />
         </button>
 
-        <HTMLFlipBook
-          ref={bookRef}
-          width={dims.w}
-          height={dims.h}
-          size="fixed"
-          flippingTime={680}
-          drawShadow={true}
-          showCover={false}
-          usePortrait={dims.portrait}
-          maxShadowOpacity={0.55}
-          mobileScrollSupport={false}
-          swipeDistance={25}
-          showPageCorners={true}
-          disableFlipByClick={false}
-          startPage={0}
-          startZIndex={1}
-          autoSize={false}
-          useMouseEvents={true}
-          clickEventForward={false}
-          style={{ direction: 'ltr' }}
-          className=""
-          onFlip={(e: { data: number }) => {
-            setCurrentPage(e.data)
-            playFlipSound()
-          }}
+        {/* The page — portrait aspect, 3D flip */}
+        <div
+          className="flex-1 flex items-center justify-center overflow-hidden"
+          style={{ maxWidth: 'min(520px, calc(100vw - 180px))', height: '100%' }}
         >
-          {pages.map((url, i) =>
-            url ? (
-              <FlipPage key={`${url}-${i}`} url={getDisplayUrl(url)} num={i + 1} />
-            ) : (
-              // Blank last page for odd-count albums
-              <div key="blank" style={{ background: '#0d0b09' }} />
-            )
-          )}
-        </HTMLFlipBook>
+          <div
+            style={{
+              ...pageStyle,
+              position: 'relative',
+              width: '100%',
+              height: '100%',
+              maxHeight: 'calc(100vh - 140px)',
+              borderRadius: 4,
+              boxShadow: anim !== 'idle'
+                ? '0 8px 40px rgba(0,0,0,0.7)'
+                : '6px 0 30px rgba(0,0,0,0.5), -2px 0 8px rgba(0,0,0,0.3)',
+              background: '#111',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={urls[idx]}
+              src={urls[idx]}
+              alt={`עמוד ${idx + 1}`}
+              draggable={false}
+              onLoad={() => setLoaded(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+            {!loaded && anim === 'idle' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Loader2 size={28} className="text-white/30 animate-spin" />
+              </div>
+            )}
+            {/* Book spine shadow on right side */}
+            <div
+              className="absolute inset-y-0 right-0 w-6 pointer-events-none"
+              style={{ background: 'linear-gradient(to left, rgba(0,0,0,0.35), transparent)' }}
+            />
+          </div>
+        </div>
 
-        {/* Next arrow */}
+        {/* RIGHT arrow = PREV (RTL) */}
         <button
           type="button"
-          onClick={() => bookRef.current?.pageFlip().flipNext()}
-          disabled={currentPage >= pages.length - 1}
+          onClick={() => navigate('prev')}
+          disabled={idx <= 0}
           className="shrink-0 w-12 h-12 rounded-full bg-black/40 hover:bg-black/70 flex items-center justify-center text-white transition disabled:opacity-15"
-          aria-label="עמוד הבא"
+          aria-label="עמוד קודם"
         >
           <ChevronRight size={26} />
         </button>
       </div>
 
-      {/* Page dots – one per image */}
+      {/* ── Page dots ── */}
       <div className="shrink-0 flex items-center justify-center gap-1.5 py-3">
-        {Array.from({ length: Math.min(totalImages, 30) }, (_, i) => (
+        {Array.from({ length: Math.min(total, 30) }, (_, i) => (
           <button
             key={i}
-            onClick={() => bookRef.current?.pageFlip().flip(dims.portrait ? i : i * 2)}
+            onClick={() => {
+              if (anim !== 'idle') return
+              if (i !== idx) { setLoaded(false); setIdx(i) }
+            }}
             className="rounded-full transition-all"
             style={{
-              width: i === visibleImageIndex ? 20 : 6,
+              width: i === idx ? 20 : 6,
               height: 6,
-              background: i === visibleImageIndex ? '#f59e0b' : 'rgba(255,255,255,0.2)',
+              background: i === idx ? '#f59e0b' : 'rgba(255,255,255,0.2)',
             }}
           />
         ))}
-        {totalImages > 30 && <span className="text-white/30 text-xs ml-1">+{totalImages - 30}</span>}
+        {total > 30 && <span className="text-white/30 text-xs mr-1">+{total - 30}</span>}
       </div>
     </div>
   )

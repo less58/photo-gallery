@@ -122,23 +122,26 @@ export default function AlbumTab({ portfolioId, color }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-stone-500">
-          {albums.length === 0 ? 'אין אלבומים עדיין' : `${albums.length} אלבומים`}
+          {albums.length === 0 ? 'אין אלבום עדיין' : 'אלבום'}
         </span>
-        <button
-          type="button"
-          onClick={() => openEditor()}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition border"
-          style={{ color, borderColor: color + '60', background: color + '10' }}
-        >
-          <Images size={14} /> אלבום תמונות
-        </button>
+        {/* Create button only when no album exists */}
+        {albums.length === 0 && (
+          <button
+            type="button"
+            onClick={() => openEditor()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition border"
+            style={{ color, borderColor: color + '60', background: color + '10' }}
+          >
+            <Images size={14} /> צור אלבום
+          </button>
+        )}
       </div>
 
       {albums.length === 0 ? (
         <div className="w-full py-10 rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center gap-4 text-stone-400">
           <BookOpen size={32} strokeWidth={1.5} />
           <div className="text-center space-y-1">
-            <p className="text-sm font-medium">אין אלבומים עדיין</p>
+            <p className="text-sm font-medium">אין אלבום עדיין</p>
             <p className="text-xs text-stone-300">צרי אלבום מתמונות</p>
           </div>
           <button
@@ -147,12 +150,13 @@ export default function AlbumTab({ portfolioId, color }: Props) {
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition border"
             style={{ color, borderColor: color + '60', background: color + '10' }}
           >
-            <Images size={14} /> אלבום תמונות
+            <Images size={14} /> צור אלבום
           </button>
         </div>
       ) : (
         <div className="space-y-2">
-          {albums.map(album => {
+          {/* Only one album per portfolio */}
+          {albums.slice(0, 1).map(album => {
             const thumb = getAlbumThumb(album)
             return (
               <div key={album.id}

@@ -57,14 +57,20 @@ export default function GalleryClient({
   const [compareQueue, setCompareQueue] = useState<string[]>([])
   const [comparePhotos, setComparePhotos] = useState<[Photo, Photo] | null>(null)
   const [lightbox, setLightbox] = useState<Photo | null>(null)
-  const [tab, setTab] = useState<GalleryTab>('gallery')
+  // Default to albums tab if photographer marked portfolio as done
+  const [tab, setTab] = useState<GalleryTab>(() =>
+    isDone && albums.length > 0 ? 'albums' : 'gallery'
+  )
   const [sendingReport, setSendingReport] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
+  const albumAutoOpenedRef = useRef(false)
 
-  // Album viewer state
-  const [viewingAlbum, setViewingAlbum] = useState<Album | null>(null)
+  // Album viewer state — auto-open if default tab is albums with a single album
+  const [viewingAlbum, setViewingAlbum] = useState<Album | null>(() =>
+    isDone && albums.length === 1 ? albums[0] : null
+  )
   // Collage fullscreen viewer
   const [viewingCollage, setViewingCollage] = useState<Collage | null>(null)
 
@@ -87,6 +93,14 @@ export default function GalleryClient({
   const lbDragging = useRef(false)
   const lbDragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 })
   const lightboxContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-open single album when navigating to albums tab (first time)
+  useEffect(() => {
+    if (tab === 'albums' && albums.length === 1 && !albumAutoOpenedRef.current) {
+      albumAutoOpenedRef.current = true
+      setViewingAlbum(albums[0])
+    }
+  }, [tab, albums])
 
   // Poll for unread messages from photographer (badge on chat button)
   useEffect(() => {
@@ -130,6 +144,7 @@ export default function GalleryClient({
     : allPhotos.filter(p => p.session_id === activeSession)
 
   const approvedCount = Object.values(selections).filter(s => s === 'approved').length
+  const overQuota = Math.max(0, approvedCount - quota)
   const approvedPhotos = allPhotos.filter(p => selections[p.id] === 'approved')
 
   const moveLightbox = useCallback((direction: -1 | 1) => {
@@ -213,14 +228,6 @@ export default function GalleryClient({
       toast('התיק הושלם על ידי הצלמת — לא ניתן לשנות בחירות', 'error')
       return
     }
-    if (status === 'approved') {
-      const currentCount = Object.values(selections).filter(s => s === 'approved').length
-      const isCurrentlyApproved = selections[photoId] === 'approved'
-      if (!isCurrentlyApproved && currentCount >= quota) {
-        toast(`הגעת למגבלה של ${quota} תמונות. הסירי בחירה כדי לבחור תמונה אחרת.`, 'error')
-        return
-      }
-    }
 
     setSelections(prev => {
       const next = { ...prev }
@@ -253,6 +260,10 @@ export default function GalleryClient({
       toast('לא נבחרו תמונות עדיין', 'error')
       return
     }
+    if (overQuota > 0) {
+      toast(`הבחירה לא נשלחה — נבחרו ${approvedCount} תמונות אך המגבלה היא ${quota}. יש להסיר ${overQuota} תמונות.`, 'error')
+      return
+    }
     setSendingReport(true)
     try {
       const res = await fetch('/api/report', { method: 'POST' })
@@ -271,7 +282,7 @@ export default function GalleryClient({
     }
   }
 
-  const isApproveBlocked = approvedCount >= quota
+  const isApproveBlocked = false // selection now allows over-quota with warning
 
   return (
     <div className="min-h-screen" style={{ background: '#0A0A0A', color: '#fff' }}>
@@ -324,6 +335,11 @@ export default function GalleryClient({
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <ProgressBar selected={approvedCount} quota={quota} color={color} />
+              {overQuota > 0 && (
+                <p className="text-[11px] mt-1 font-medium" style={{ color: '#ef4444' }}>
+                  נבחרו {approvedCount} — יש להסיר {overQuota} תמונות לפני השליחה
+                </p>
+              )}
             </div>
             {showSendButton && (
               <button
