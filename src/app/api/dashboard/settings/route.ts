@@ -9,7 +9,7 @@ const OPTIONAL_COLUMNS = [
   'watermark_position', 'watermark_font_size', 'watermark_color',
   'watermark_x', 'watermark_y', 'watermark_rotation', 'watermark_image_opacity',
   'logo_public_id',
-  'email_subject', 'email_body', 'email_provider',
+  'email_subject', 'email_body', 'email_album_subject', 'email_album_body', 'email_provider',
   'gmail_address', 'gmail_app_password',
   'resend_api_key', 'sender_email', 'sender_display_name',
   'default_instructions', 'send_client_emails',
@@ -50,6 +50,8 @@ export async function PATCH(req: NextRequest) {
   if (body.resendApiKey !== undefined)       update.resend_api_key = body.resendApiKey
   if (body.emailSubject !== undefined)       update.email_subject = body.emailSubject
   if (body.emailBody !== undefined)          update.email_body = body.emailBody
+  if (body.emailAlbumSubject !== undefined)  update.email_album_subject = body.emailAlbumSubject
+  if (body.emailAlbumBody !== undefined)     update.email_album_body = body.emailAlbumBody
   if (body.emailProvider !== undefined)      update.email_provider = body.emailProvider
   if (body.gmailAddress !== undefined)       update.gmail_address = body.gmailAddress
   if (body.gmailAppPassword !== undefined)   update.gmail_app_password = body.gmailAppPassword

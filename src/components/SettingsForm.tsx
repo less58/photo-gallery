@@ -23,6 +23,7 @@ type Photographer = {
   gmail_address: string | null; gmail_app_password: string | null
   sender_email: string | null; resend_api_key: string | null
   email_subject: string | null; email_body: string | null
+  email_album_subject?: string | null; email_album_body?: string | null
   sender_display_name: string | null
   receive_selection_emails: boolean | null
   enable_collages: boolean | null
@@ -60,6 +61,9 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const [senderEmail, setSenderEmail] = useState(ph.sender_email || '')
   const [emailSubject, setEmailSubject] = useState(ph.email_subject || 'התמונות שלך מוכנות לבחירה 📷')
   const [emailBody, setEmailBody] = useState(ph.email_body || 'שלום,\n\nהתמונות שלך מוכנות לבחירה!\n\nבברכה,\n{photographer_name}')
+  const [emailAlbumSubject, setEmailAlbumSubject] = useState(ph.email_album_subject || 'האלבום שלך מוכן לצפייה 📸')
+  const [emailAlbumBody, setEmailAlbumBody] = useState(ph.email_album_body || 'שלום,\n\nהאלבום שלך מוכן! ניתן לצפות בו דרך הקישור שלמטה.\n\nבברכה,\n{photographer_name}')
+  const [settingsTab, setSettingsTab] = useState<'design' | 'email' | 'general'>('design')
   const [receiveSelectionEmails, setReceiveSelectionEmails] = useState(ph.receive_selection_emails !== false)
   const [enableCollages, setEnableCollages] = useState(ph.enable_collages !== false)
   const [allowAlbumDownload, setAllowAlbumDownload] = useState(ph.allow_album_download === true)
@@ -206,6 +210,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
         resendApiKey: resendKey || null,
         senderEmail: senderEmail || null,
         emailSubject, emailBody,
+        emailAlbumSubject, emailAlbumBody,
         receiveSelectionEmails,
         enableCollages,
         allowAlbumDownload,
@@ -237,6 +242,25 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
 
   return (
     <form onSubmit={saveAll} className="space-y-4">
+
+      {/* ── Tab navigation ── */}
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#f5f5f4' }}>
+        {([['design', 'עיצוב'], ['email', 'מיילים'], ['general', 'כללי']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setSettingsTab(key)}
+            className="flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all"
+            style={settingsTab === key
+              ? { background: 'var(--brand)', color: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
+              : { color: '#78716C' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {settingsTab === 'design' && <>
 
       {/* ── Identity ── */}
       <Section title="פרטי זהות">
@@ -519,6 +543,10 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
           placeholder="למשל: אנא בחרי עד 30 תמונות שהכי אהבת 💕" />
       </Section>
 
+      </> /* end design tab */}
+
+      {settingsTab === 'email' && <>
+
       {/* ── Email Notifications ── */}
       <Section title="שליחת מיילים ללקוחות">
 
@@ -625,9 +653,28 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
                 <p className="text-[11px] text-stone-400 mt-1">הסיסמה והקישור נוספים אוטומטית בסוף</p>
               </Field>
             </div>
+
+            {/* Album email template */}
+            <div className="pt-3 border-t border-stone-100 space-y-3">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">תבנית מייל — אלבום</p>
+              <p className="text-xs text-stone-400 -mt-1">נשלח כשלוחצים "שלח מייל אלבום" בתיק הלקוחה</p>
+              <Field label="כותרת" hint="{portfolio_name}">
+                <input value={emailAlbumSubject} onChange={e => setEmailAlbumSubject(e.target.value)}
+                  className={inp} placeholder="האלבום שלך מוכן לצפייה 📸" />
+              </Field>
+              <Field label="גוף ההודעה" hint="{photographer_name}">
+                <textarea value={emailAlbumBody} onChange={e => setEmailAlbumBody(e.target.value)}
+                  className={inp + ' resize-none text-xs leading-6'} rows={4} />
+                <p className="text-[11px] text-stone-400 mt-1">קישור לאלבום נוסף אוטומטית בסוף</p>
+              </Field>
+            </div>
           </div>
         )}
       </Section>
+
+      </> /* end email tab */}
+
+      {settingsTab === 'general' && <>
 
       {/* ── Client experience ── */}
       <Section title="חווית לקוחה">
@@ -668,6 +715,8 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
         </label>
 
       </Section>
+
+      </> /* end general tab */}
 
       {/* ── Save ── */}
       <button type="submit" disabled={saving}

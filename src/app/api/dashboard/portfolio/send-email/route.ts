@@ -9,7 +9,10 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
-  const { portfolioId } = await req.json()
+  const body = await req.json()
+  const { portfolioId, emailType = 'selection', customSubject, customBody } = body as {
+    portfolioId: string; emailType?: string; customSubject?: string; customBody?: string
+  }
   if (!portfolioId) return Response.json({ error: 'חסר מזהה תיק' }, { status: 400 })
 
   const admin = createAdminClient()
@@ -42,8 +45,15 @@ export async function POST(req: NextRequest) {
   try {
     const siteUrl = req.nextUrl.origin
     const magicLink = `${siteUrl}/enter/${portfolio.magic_token}`
-    const subject = ((ph.email_subject as string) || 'התמונות שלך מוכנות לבחירה 📷')
-      .replace('{portfolio_name}', portfolio.title)
+
+    const defaultSubject = emailType === 'album'
+      ? ((ph.email_album_subject as string) || 'האלבום שלך מוכן לצפייה 📸')
+      : ((ph.email_subject as string) || 'התמונות שלך מוכנות לבחירה 📷')
+    const defaultBody = emailType === 'album'
+      ? ((ph.email_album_body as string) || '')
+      : ((ph.email_body as string) || '')
+
+    const subject = (customSubject || defaultSubject).replace('{portfolio_name}', portfolio.title)
 
     const emailData = {
       photographerName: String(ph.name || ''),
@@ -51,7 +61,7 @@ export async function POST(req: NextRequest) {
       portfolioTitle: portfolio.title,
       magicLink,
       siteUrl,
-      bodyTemplate: (ph.email_body as string) || '',
+      bodyTemplate: customBody || defaultBody,
       logoUrl: (ph.logo_url as string) || null,
       brandColor: (ph.brand_color as string) || '#C97B73',
     }

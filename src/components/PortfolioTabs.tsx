@@ -21,7 +21,12 @@ type Photographer = {
   watermark_rotation?: number | null; watermark_image_opacity?: number | null
   send_client_emails: boolean
   enable_collages?: boolean | null
+  email_subject?: string | null
+  email_body?: string | null
+  email_album_subject?: string | null
+  email_album_body?: string | null
 }
+type EmailModalType = 'selection' | 'album'
 type Props = {
   portfolio: Portfolio
   sessions: (Session & { photos: Photo[] })[]
@@ -56,6 +61,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [emailSent, setEmailSent] = useState(false)
   const [showResendConfirm, setShowResendConfirm] = useState(false)
   const [showNoEmailConfig, setShowNoEmailConfig] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [emailModalType, setEmailModalType] = useState<EmailModalType>('selection')
+  const [emailModalSubject, setEmailModalSubject] = useState('')
+  const [emailModalBody, setEmailModalBody] = useState('')
+  const [hasAlbum, setHasAlbum] = useState(false)
   const [quota, setQuota] = useState(portfolio.quota)
   const [editingQuota, setEditingQuota] = useState(false)
   const [quotaDraft, setQuotaDraft] = useState(String(portfolio.quota))
@@ -72,6 +82,13 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const allPhotos = sessions.flatMap(s => s.photos || [])
 
   useEffect(() => { setSiteOrigin(window.location.origin) }, [])
+
+  useEffect(() => {
+    fetch(`/api/dashboard/albums?portfolioId=${portfolio.id}`)
+      .then(r => r.json())
+      .then(d => setHasAlbum((d.albums || []).length > 0))
+      .catch(() => {})
+  }, [portfolio.id])
 
   const moveLightbox = useCallback((dir: -1 | 1) => {
     setLightboxPhoto(current => {
@@ -150,14 +167,20 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     setTimeout(() => setCopied(false), 2000)
   }
 
-  async function doSendEmail() {
+  async function doSendEmail(type?: EmailModalType, subject?: string, body?: string) {
     setShowResendConfirm(false)
+    setShowEmailModal(false)
     setSendingEmail(true)
     try {
       const res = await fetch('/api/dashboard/portfolio/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ portfolioId: portfolio.id }),
+        body: JSON.stringify({
+          portfolioId: portfolio.id,
+          emailType: type || 'selection',
+          customSubject: subject,
+          customBody: body,
+        }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -175,9 +198,24 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     }
   }
 
+  function openEmailModal(type: EmailModalType) {
+    setEmailModalType(type)
+    if (type === 'selection') {
+      setEmailModalSubject(photographer.email_subject || 'התמונות שלך מוכנות לבחירה 📷')
+      setEmailModalBody(photographer.email_body || 'שלום,\n\nהתמונות שלך מוכנות לבחירה!\n\nבברכה,\n{photographer_name}')
+    } else {
+      setEmailModalSubject(photographer.email_album_subject || 'האלבום שלך מוכן לצפייה 📸')
+      setEmailModalBody(photographer.email_album_body || 'שלום,\n\nהאלבום שלך מוכן!\n\nבברכה,\n{photographer_name}')
+    }
+    setShowEmailModal(true)
+  }
+
   function sendEmailToClient() {
     if (emailSent) { setShowResendConfirm(true); return }
-    void doSendEmail()
+    // Show type selection modal
+    setShowNoEmailConfig(false)
+    setShowResendConfirm(false)
+    openEmailModal('selection')
   }
 
   async function uploadCover(file: File) {
@@ -670,6 +708,83 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             >
               ביטול
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Email type + compose modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100 shrink-0">
+              <p className="font-semibold text-stone-800 text-sm">שלחי מייל ללקוחה</p>
+              <button type="button" onClick={() => setShowEmailModal(false)} className="text-stone-400 hover:text-stone-600 transition">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Email type selector */}
+            <div className="px-5 pt-4 shrink-0">
+              <p className="text-xs text-stone-500 font-medium mb-2">סוג מייל</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['selection', 'album'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    disabled={t === 'album' && !hasAlbum}
+                    onClick={() => openEmailModal(t)}
+                    className="py-2.5 px-3 rounded-xl border text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed text-right"
+                    style={emailModalType === t
+                      ? { background: color, color: '#fff', borderColor: color }
+                      : { borderColor: '#E7E5E4', color: '#57534E' }}
+                  >
+                    {t === 'selection' ? '📷 בחירת תמונות' : '📖 אלבום'}
+                    {t === 'album' && !hasAlbum && (
+                      <span className="block text-[10px] font-normal mt-0.5 opacity-70">אין אלבום בתיק</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Template editor */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 min-h-0">
+              <div>
+                <label className="text-xs font-medium text-stone-500 block mb-1">כותרת</label>
+                <input
+                  value={emailModalSubject}
+                  onChange={e => setEmailModalSubject(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-stone-500 block mb-1">גוף ההודעה</label>
+                <textarea
+                  value={emailModalBody}
+                  onChange={e => setEmailModalBody(e.target.value)}
+                  rows={5}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-rose-200 resize-none"
+                />
+                <p className="text-[11px] text-stone-400 mt-1">הקישור ללקוחה נוסף אוטומטית בסוף המייל</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 px-5 py-4 border-t border-stone-100 shrink-0">
+              <button type="button" onClick={() => setShowEmailModal(false)}
+                className="px-4 py-2 rounded-lg text-sm text-stone-500 hover:bg-stone-50 transition flex-1">
+                ביטול
+              </button>
+              <button
+                type="button"
+                disabled={sendingEmail}
+                onClick={() => void doSendEmail(emailModalType, emailModalSubject, emailModalBody)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: color }}
+              >
+                <Mail size={13} />
+                {sendingEmail ? 'שולח...' : 'שלחי'}
+              </button>
+            </div>
           </div>
         </div>
       )}
