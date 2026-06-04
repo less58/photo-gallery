@@ -60,43 +60,49 @@ function playPageTurnSound() {
     gain.connect(ctx.destination)
     noise.start()
     noise.stop(ctx.currentTime + duration)
-  } catch { /* ignore audio errors */ }
+  } catch { /* ignore */ }
 }
 
 type PageProps =
   | { kind: 'cover'; url: string }
   | { kind: 'spread-half'; url: string; side: 'left' | 'right' }
 
+// Each page wraps its content in scaleX(-1) to cancel the book wrapper's scaleX(-1),
+// so images appear un-mirrored while the flip animation goes in the RTL direction.
 const Page = forwardRef<HTMLDivElement, PageProps>((props, ref) => {
   if (props.kind === 'cover') {
     return (
       <div ref={ref} className="relative overflow-hidden bg-black">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={props.url}
-          alt=""
-          draggable={false}
-          className="h-full w-full object-cover"
-        />
+        <div className="absolute inset-0" style={{ transform: 'scaleX(-1)' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={props.url}
+            alt=""
+            draggable={false}
+            className="h-full w-full object-cover"
+          />
+        </div>
       </div>
     )
   }
 
   return (
     <div ref={ref} className="relative overflow-hidden bg-black">
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `url(${props.url})`,
-          backgroundRepeat: 'no-repeat',
-          backgroundSize: '200% 100%',
-          backgroundPosition: props.side === 'left' ? 'left center' : 'right center',
-        }}
-      />
-      <div
-        className="absolute inset-y-0 w-px bg-black/10"
-        style={props.side === 'left' ? { right: 0 } : { left: 0 }}
-      />
+      <div className="absolute inset-0" style={{ transform: 'scaleX(-1)' }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url(${props.url})`,
+            backgroundRepeat: 'no-repeat',
+            backgroundSize: '200% auto',
+            backgroundPosition: props.side === 'left' ? 'left center' : 'right center',
+          }}
+        />
+        <div
+          className="absolute inset-y-0 w-px bg-black/10"
+          style={props.side === 'left' ? { right: 0 } : { left: 0 }}
+        />
+      </div>
     </div>
   )
 })
@@ -114,7 +120,6 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
   const [spreadAspect, setSpreadAspect] = useState(DEFAULT_SPREAD_ASPECT)
   const [coverAspect, setCoverAspect] = useState(DEFAULT_COVER_ASPECT)
   const thumbRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const isManualTurn = useRef(false)
 
   const imageUrls = useMemo(() => album.image_urls ?? [], [album.image_urls])
   const total = imageUrls.length
@@ -125,9 +130,8 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     if (!cover) return
     const img = new window.Image()
     img.onload = () => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0)
         setCoverAspect(img.naturalWidth / img.naturalHeight)
-      }
     }
     img.src = getDisplayUrl(cover)
   }, [imageUrls])
@@ -137,9 +141,8 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     if (!firstSpread) return
     const img = new window.Image()
     img.onload = () => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        setSpreadAspect(Math.max(1.35, Math.min(2.4, img.naturalWidth / img.naturalHeight)))
-      }
+      if (img.naturalWidth > 0 && img.naturalHeight > 0)
+        setSpreadAspect(img.naturalWidth / img.naturalHeight)
     }
     img.src = getDisplayUrl(firstSpread)
   }, [imageUrls])
@@ -179,27 +182,25 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
   }, [currentImageIndex, imageUrls, total])
 
   const goToImage = useCallback((imageIndex: number) => {
-    isManualTurn.current = true
-    bookRef.current?.pageFlip().turnToPage(pageIndexForImage(imageIndex))
+    // Use animated flip instead of instant turnToPage
+    bookRef.current?.pageFlip().flip(pageIndexForImage(imageIndex), 'bottom')
     setCurrentImageIndex(imageIndex)
-    setTimeout(() => { isManualTurn.current = false }, 600)
   }, [])
 
+  // Hebrew book: goNext flips the left visual page to the right (RTL direction)
   const goNext = useCallback(() => {
     setCurrentImageIndex(current => {
       if (current >= total - 1) return current
-      const next = current + 1
-      bookRef.current?.pageFlip().flipNext()
-      return next
+      bookRef.current?.pageFlip().flipNext('bottom')
+      return current + 1
     })
   }, [total])
 
   const goPrev = useCallback(() => {
     setCurrentImageIndex(current => {
       if (current <= 0) return current
-      const next = current - 1
-      bookRef.current?.pageFlip().flipPrev()
-      return next
+      bookRef.current?.pageFlip().flipPrev('bottom')
+      return current - 1
     })
   }, [])
 
@@ -240,6 +241,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col select-none bg-[#111]" dir="rtl">
+      {/* Header */}
       <div
         className="shrink-0 flex items-center justify-between px-5 py-3 gap-4"
         style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(8px)' }}
@@ -271,73 +273,90 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
         </div>
       </div>
 
+      {/* Book area */}
       <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden px-4 sm:px-20 py-5" dir="ltr">
-        <button
-          type="button"
-          onClick={goPrev}
-          disabled={currentImageIndex <= 0}
-          className="absolute left-3 sm:left-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
-          aria-label="הקודם"
-        >
-          <ChevronLeft size={26} />
-        </button>
-
-        <HTMLFlipBook
-          ref={bookRef}
-          width={pageW}
-          height={pageH}
-          size="fixed"
-          minWidth={160}
-          maxWidth={900}
-          minHeight={220}
-          maxHeight={900}
-          usePortrait={false}
-          showCover={true}
-          flippingTime={850}
-          drawShadow={true}
-          maxShadowOpacity={0.65}
-          startPage={0}
-          startZIndex={1}
-          autoSize={false}
-          mobileScrollSupport={false}
-          swipeDistance={25}
-          showPageCorners={true}
-          disableFlipByClick={false}
-          useMouseEvents={true}
-          clickEventForward={false}
-          style={{
-            boxShadow: '0 24px 70px rgba(0,0,0,0.72), 0 5px 16px rgba(0,0,0,0.55)',
-          }}
-          className=""
-          onFlip={(e: { data: number }) => {
-            if (isManualTurn.current) return
-            setCurrentImageIndex(Math.min(total - 1, imageIndexForPage(e.data)))
-            playPageTurnSound()
-          }}
-        >
-          {displayUrls.flatMap((url, i) => (
-            i === 0
-              ? [<Page key={`${url}-cover`} kind="cover" url={url} />]
-              : [
-                  <Page key={`${url}-left`} kind="spread-half" url={url} side="left" />,
-                  <Page key={`${url}-right`} kind="spread-half" url={url} side="right" />,
-                ]
-          ))}
-        </HTMLFlipBook>
-
+        {/* Hebrew nav: left arrow = forward, right arrow = back */}
         <button
           type="button"
           onClick={goNext}
           disabled={currentImageIndex >= total - 1}
-          className="absolute right-3 sm:right-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
+          className="absolute left-3 sm:left-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
           aria-label="הבא"
+        >
+          <ChevronLeft size={26} />
+        </button>
+
+        {/* Outer div: shifts cover to center when on page 0 */}
+        <div
+          style={{
+            transform: currentImageIndex === 0 ? `translateX(${pageW / 2}px)` : 'translateX(0px)',
+            transition: 'transform 0.4s ease',
+          }}
+        >
+          {/* scaleX(-1) makes the book RTL: cover on left, pages flip left→right */}
+          <div style={{ transform: 'scaleX(-1)' }}>
+            <HTMLFlipBook
+              ref={bookRef}
+              width={pageW}
+              height={pageH}
+              size="fixed"
+              minWidth={160}
+              maxWidth={900}
+              minHeight={220}
+              maxHeight={900}
+              usePortrait={false}
+              showCover={true}
+              flippingTime={850}
+              drawShadow={true}
+              maxShadowOpacity={0.65}
+              startPage={0}
+              startZIndex={1}
+              autoSize={false}
+              mobileScrollSupport={false}
+              swipeDistance={25}
+              showPageCorners={true}
+              disableFlipByClick={false}
+              useMouseEvents={true}
+              clickEventForward={false}
+              style={{
+                boxShadow: '0 24px 70px rgba(0,0,0,0.72), 0 5px 16px rgba(0,0,0,0.55)',
+              }}
+              className=""
+              onFlip={(e: { data: number }) => {
+                setCurrentImageIndex(Math.min(total - 1, imageIndexForPage(e.data)))
+                playPageTurnSound()
+              }}
+            >
+              {displayUrls.flatMap((url, i) =>
+                i === 0
+                  ? [<Page key={`${url}-cover`} kind="cover" url={url} />]
+                  : [
+                      // Sides swapped vs LTR so panoramic image appears left→right on screen
+                      <Page key={`${url}-L`} kind="spread-half" url={url} side="right" />,
+                      <Page key={`${url}-R`} kind="spread-half" url={url} side="left" />,
+                    ]
+              )}
+            </HTMLFlipBook>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={goPrev}
+          disabled={currentImageIndex <= 0}
+          className="absolute right-3 sm:right-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
+          aria-label="הקודם"
         >
           <ChevronRight size={26} />
         </button>
       </div>
 
+      {/* Thumbnail strip */}
       <div className="shrink-0 bg-black/50 px-10 sm:px-16 py-3" dir="ltr">
-        <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1">
+        <div
+          className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1"
+          style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
+        >
           {imageUrls.map((url, i) => {
             const isSpread = i > 0
             const thumbW = isSpread ? spreadThumbW : coverThumbW
