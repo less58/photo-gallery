@@ -65,6 +65,10 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
         watermark_image_opacity: (photographer.watermark_image_opacity as number) ?? 20,
         send_client_emails: (photographer.send_client_emails as boolean) ?? false,
         enable_collages: (photographer.enable_collages as boolean) ?? true,
+        email_subject: (photographer.email_subject as string) ?? null,
+        email_body: (photographer.email_body as string) ?? null,
+        email_album_subject: (photographer.email_album_subject as string) ?? null,
+        email_album_body: (photographer.email_album_body as string) ?? null,
       }}
     />
   )

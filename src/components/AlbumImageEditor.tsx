@@ -211,16 +211,22 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[88vh]">
 
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-stone-100 shrink-0">
+        <div className="px-5 pt-5 pb-4 border-b border-stone-100 shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-stone-400 uppercase tracking-wide">
+              {isEdit ? 'עריכת אלבום' : 'אלבום חדש'}
+            </p>
+            <button onClick={handleClose} className="text-stone-400 hover:text-stone-600 transition">
+              <X size={20} />
+            </button>
+          </div>
           <input
+            autoFocus={!isEdit}
             value={albumName}
             onChange={e => setAlbumName(e.target.value)}
-            className="flex-1 text-lg font-semibold text-stone-800 bg-transparent border-b-2 border-transparent hover:border-stone-200 focus:border-stone-400 focus:outline-none px-1 py-0.5 transition"
+            className="w-full text-xl font-bold text-stone-800 bg-stone-50 border-2 border-stone-200 hover:border-stone-300 focus:border-rose-400 focus:outline-none rounded-xl px-4 py-3 transition"
             placeholder="שם האלבום"
           />
-          <button onClick={handleClose} className="text-stone-400 hover:text-stone-600 transition shrink-0">
-            <X size={20} />
-          </button>
         </div>
 
         {/* Drop zone */}

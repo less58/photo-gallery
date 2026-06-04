@@ -191,15 +191,15 @@ export default function AlbumTab({ portfolioId, color }: Props) {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 group/name">
+                    <button
+                      type="button"
+                      onClick={() => startEditName(album)}
+                      className="flex items-center gap-1.5 group/name rounded px-1 -mx-1 hover:bg-stone-200 transition text-right"
+                      title="לחצי לשינוי שם"
+                    >
                       <p className="text-sm font-medium text-stone-700 truncate">{album.name}</p>
-                      <button
-                        onClick={() => startEditName(album)}
-                        className="opacity-0 group-hover/name:opacity-100 text-stone-400 hover:text-stone-600 transition"
-                      >
-                        <Pencil size={11} />
-                      </button>
-                    </div>
+                      <Pencil size={11} className="text-stone-400 shrink-0 opacity-60 group-hover/name:opacity-100 transition" />
+                    </button>
                   )}
                   <p className="text-xs text-stone-400 mt-0.5">
                     {album.image_urls?.length ?? album.page_count} תמונות
