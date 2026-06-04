@@ -40,12 +40,12 @@ export default function AlbumTab({ portfolioId, color }: Props) {
       .finally(() => setLoading(false))
   }, [portfolioId])
 
-  async function handleImageAlbumSave(name: string, imageUrls: string[]) {
+  async function handleImageAlbumSave(name: string, imageUrls: string[], lastPageSingle: boolean) {
     if (editingAlbum) {
       const res = await fetch(`/api/dashboard/album/${editingAlbum.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, imageUrls, pageCount: imageUrls.length }),
+        body: JSON.stringify({ name, imageUrls, pageCount: imageUrls.length, lastPageSingle }),
       })
       const album = await res.json()
       if (album.id) {
@@ -62,6 +62,7 @@ export default function AlbumTab({ portfolioId, color }: Props) {
           name,
           imageUrls,
           pageCount: imageUrls.length,
+          lastPageSingle,
         }),
       })
       const album = await saveRes.json()
@@ -241,7 +242,7 @@ export default function AlbumTab({ portfolioId, color }: Props) {
       )}
 
       {viewingAlbum && (
-        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} />
+        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} isPhotographer={true} />
       )}
 
       {showImageEditor && (

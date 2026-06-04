@@ -79,6 +79,8 @@ export type Album = {
   pdf_url: string | null
   image_urls: string[] | null
   page_count: number
+  last_page_single: boolean | null
+  spread_notes: Record<string, string> | null
   created_at: string
 }
 

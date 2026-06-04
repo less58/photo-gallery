@@ -27,16 +27,16 @@ type Props = {
   album: Album
   onClose: () => void
   allowDownload?: boolean
+  isPhotographer?: boolean
 }
 
 type AnimState = 'idle' | 'exiting' | 'entering'
 
 const EXIT_MS = 220
 
-export default function AlbumViewer({ album, onClose, allowDownload = false }: Props) {
-  // Image albums get the real flipbook; PDF albums use the slide viewer
+export default function AlbumViewer({ album, onClose, allowDownload = false, isPhotographer = false }: Props) {
   if (album.image_urls?.length) {
-    return <AlbumFlipBook album={album} onClose={onClose} allowDownload={allowDownload} />
+    return <AlbumFlipBook album={album} onClose={onClose} allowDownload={allowDownload} isPhotographer={isPhotographer} />
   }
 
   return <PdfViewer album={album} onClose={onClose} allowDownload={allowDownload} />

@@ -18,7 +18,7 @@ type ImageItem = {
 type Props = {
   portfolioId: string
   color: string
-  onSave: (name: string, imageUrls: string[]) => Promise<void>
+  onSave: (name: string, imageUrls: string[], lastPageSingle: boolean) => Promise<void>
   onClose: () => void
   editAlbum?: Album
 }
@@ -69,6 +69,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
   const isEdit = !!editAlbum
 
   const [albumName, setAlbumName] = useState(editAlbum?.name ?? 'אלבום חדש')
+  const [lastPageSingle, setLastPageSingle] = useState(editAlbum?.last_page_single ?? false)
   const [images, setImages] = useState<ImageItem[]>(() => {
     if (editAlbum?.image_urls) {
       return editAlbum.image_urls.map((url, i) => ({
@@ -200,7 +201,7 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
     if (urls.length === 0) return
     setSaving(true)
     try {
-      await onSave(albumName, urls)
+      await onSave(albumName, urls, lastPageSingle)
     } finally {
       setSaving(false)
     }
@@ -336,9 +337,22 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
                     )}
                   </div>
 
-                  <p className="text-[9px] text-stone-400 truncate text-center leading-tight px-0.5" title={img.name}>
-                    {img.name}
-                  </p>
+                  {/* single-page indicator / toggle */}
+                  {idx === 0 && img.url && (
+                    <p className="text-[9px] text-rose-400 text-center leading-tight">עמוד בודד</p>
+                  )}
+                  {idx === images.length - 1 && idx > 0 && img.url && (
+                    <button
+                      type="button"
+                      onClick={() => setLastPageSingle(v => !v)}
+                      className={`text-[9px] text-center leading-tight transition ${lastPageSingle ? 'text-rose-500 font-semibold' : 'text-stone-400 hover:text-stone-600'}`}
+                    >
+                      {lastPageSingle ? '✓ עמוד בודד' : '+ עמוד בודד'}
+                    </button>
+                  )}
+                  {(idx > 0 && idx < images.length - 1) && (
+                    <p className="text-[9px] text-stone-300 text-center leading-tight">2 עמודים</p>
+                  )}
                 </div>
               ))}
             </div>

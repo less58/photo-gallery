@@ -2,7 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import HTMLFlipBook from 'react-pageflip'
-import { ChevronLeft, ChevronRight, X, Download, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Download, Loader2, MessageSquare, Send } from 'lucide-react'
 import type { Album } from '@/lib/types'
 
 function cloudinaryTransform(url: string, transform: string): string {
@@ -17,18 +17,11 @@ function getThumbUrl(url: string, w: number, h: number): string {
   return cloudinaryTransform(url, `w_${w * 2},h_${h * 2},c_fill,q_auto:good,f_jpg`)
 }
 
-function getPageLabel(index: number): string {
+function getPageLabel(index: number, total: number, lastSingle: boolean): string {
   if (index === 0) return '1'
+  if (lastSingle && index === total - 1) return String(index * 2)
   const first = index * 2
   return `${first}-${first + 1}`
-}
-
-function pageIndexForImage(imageIndex: number): number {
-  return imageIndex === 0 ? 0 : 1 + (imageIndex - 1) * 2
-}
-
-function imageIndexForPage(pageIndex: number): number {
-  return pageIndex === 0 ? 0 : Math.floor((pageIndex - 1) / 2) + 1
 }
 
 const THUMB_H = 82
@@ -64,28 +57,20 @@ function playPageTurnSound() {
 }
 
 type PageProps =
-  | { kind: 'cover'; url: string }
+  | { kind: 'cover' | 'back-cover'; url: string }
   | { kind: 'spread-half'; url: string; side: 'left' | 'right' }
 
-// Each page wraps its content in scaleX(-1) to cancel the book wrapper's scaleX(-1),
-// so images appear un-mirrored while the flip animation goes in the RTL direction.
 const Page = forwardRef<HTMLDivElement, PageProps>((props, ref) => {
-  if (props.kind === 'cover') {
+  if (props.kind === 'cover' || props.kind === 'back-cover') {
     return (
       <div ref={ref} className="relative overflow-hidden bg-black">
         <div className="absolute inset-0" style={{ transform: 'scaleX(-1)' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={props.url}
-            alt=""
-            draggable={false}
-            className="h-full w-full object-cover"
-          />
+          <img src={props.url} alt="" draggable={false} className="h-full w-full object-cover" />
         </div>
       </div>
     )
   }
-
   return (
     <div ref={ref} className="relative overflow-hidden bg-black">
       <div className="absolute inset-0" style={{ transform: 'scaleX(-1)' }}>
@@ -108,9 +93,14 @@ const Page = forwardRef<HTMLDivElement, PageProps>((props, ref) => {
 })
 Page.displayName = 'AlbumFlipBookPage'
 
-type Props = { album: Album; onClose: () => void; allowDownload?: boolean }
+type Props = {
+  album: Album
+  onClose: () => void
+  allowDownload?: boolean
+  isPhotographer?: boolean
+}
 
-export default function AlbumFlipBook({ album, onClose, allowDownload = false }: Props) {
+export default function AlbumFlipBook({ album, onClose, allowDownload = false, isPhotographer = false }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bookRef = useRef<any>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -120,10 +110,39 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
   const [spreadAspect, setSpreadAspect] = useState(DEFAULT_SPREAD_ASPECT)
   const [coverAspect, setCoverAspect] = useState(DEFAULT_COVER_ASPECT)
   const thumbRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [notes, setNotes] = useState<Record<string, string>>(album.spread_notes ?? {})
+  const [noteEditIndex, setNoteEditIndex] = useState<number | null>(null)
+  const [noteDraft, setNoteDraft] = useState('')
+  const [noteSaving, setNoteSaving] = useState(false)
 
   const imageUrls = useMemo(() => album.image_urls ?? [], [album.image_urls])
   const total = imageUrls.length
+  const lastPageSingle = !!(album.last_page_single && total > 1)
   const displayUrls = useMemo(() => imageUrls.map(getDisplayUrl), [imageUrls])
+
+  // Map imageIndex → starting page index
+  const pageMap = useMemo(() => {
+    const map: number[] = []
+    let page = 0
+    for (let i = 0; i < total; i++) {
+      map.push(page)
+      if (i === 0) page += 1
+      else if (lastPageSingle && i === total - 1) page += 1
+      else page += 2
+    }
+    return map
+  }, [total, lastPageSingle])
+
+  function pageIndexForImage(imageIndex: number): number {
+    return pageMap[imageIndex] ?? 0
+  }
+
+  function imageIndexForPage(pageIndex: number): number {
+    for (let i = pageMap.length - 1; i >= 0; i--) {
+      if (pageMap[i] <= pageIndex) return i
+    }
+    return 0
+  }
 
   useEffect(() => {
     const cover = imageUrls[0]
@@ -149,9 +168,10 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
 
   useEffect(() => {
     function calc() {
+      const notesH = 48
       const thumbnailH = THUMB_H + 32
       const headerH = 56
-      const availH = window.innerHeight - headerH - thumbnailH - 40
+      const availH = window.innerHeight - headerH - thumbnailH - notesH - 40
       const availW = window.innerWidth - 168
       const pageAspect = spreadAspect / 2
       const pageFromH = Math.floor(availH * pageAspect)
@@ -181,13 +201,13 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     })
   }, [currentImageIndex, imageUrls, total])
 
+  // Instant jump (no animation) when clicking thumbnail
   const goToImage = useCallback((imageIndex: number) => {
-    // Use animated flip instead of instant turnToPage
-    bookRef.current?.pageFlip().flip(pageIndexForImage(imageIndex), 'bottom')
+    bookRef.current?.pageFlip().turnToPage(pageIndexForImage(imageIndex))
     setCurrentImageIndex(imageIndex)
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageMap])
 
-  // Hebrew book: goNext flips the left visual page to the right (RTL direction)
   const goNext = useCallback(() => {
     setCurrentImageIndex(current => {
       if (current >= total - 1) return current
@@ -214,6 +234,26 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     return () => window.removeEventListener('keydown', onKey)
   }, [goNext, goPrev, onClose])
 
+  async function saveNote(spreadIndex: number, text: string) {
+    setNoteSaving(true)
+    try {
+      const trimmed = text.trim()
+      await fetch(`/api/portfolio/${album.portfolio_id}/album-notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ albumId: album.id, spreadIndex, note: trimmed }),
+      })
+      setNotes(prev => {
+        const next = { ...prev }
+        if (trimmed) next[String(spreadIndex)] = trimmed
+        else delete next[String(spreadIndex)]
+        return next
+      })
+      setNoteEditIndex(null)
+    } catch { /* ignore */ }
+    setNoteSaving(false)
+  }
+
   async function downloadAlbum() {
     if (downloading || !album.image_urls) return
     setDownloading(true)
@@ -238,6 +278,12 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
 
   const coverThumbW = Math.round(THUMB_H * coverAspect)
   const spreadThumbW = Math.round(THUMB_H * spreadAspect)
+  const currentNote = notes[String(currentImageIndex)] ?? ''
+
+  // Cover centered: shift right. Back-cover centered: shift left.
+  const isOnCover = currentImageIndex === 0
+  const isOnBackCover = lastPageSingle && currentImageIndex === total - 1
+  const bookTranslateX = isOnCover ? pageW / 2 : isOnBackCover ? -pageW / 2 : 0
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col select-none bg-[#111]" dir="rtl">
@@ -249,7 +295,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
         <div className="flex items-center gap-3 min-w-0">
           <span className="font-semibold text-white text-sm truncate">{album.name}</span>
           <span className="text-white/45 text-xs tabular-nums shrink-0">
-            {getPageLabel(currentImageIndex)}
+            {getPageLabel(currentImageIndex, total, lastPageSingle)}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -266,7 +312,6 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center text-white/55 hover:text-white transition rounded-lg hover:bg-white/10"
-            aria-label="סגירה"
           >
             <X size={18} />
           </button>
@@ -275,25 +320,16 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
 
       {/* Book area */}
       <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden px-4 sm:px-20 py-5" dir="ltr">
-        {/* Hebrew nav: left arrow = forward, right arrow = back */}
         <button
           type="button"
           onClick={goNext}
           disabled={currentImageIndex >= total - 1}
           className="absolute left-3 sm:left-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
-          aria-label="הבא"
         >
           <ChevronLeft size={26} />
         </button>
 
-        {/* Outer div: shifts cover to center when on page 0 */}
-        <div
-          style={{
-            transform: currentImageIndex === 0 ? `translateX(${pageW / 2}px)` : 'translateX(0px)',
-            transition: 'transform 0.4s ease',
-          }}
-        >
-          {/* scaleX(-1) makes the book RTL: cover on left, pages flip left→right */}
+        <div style={{ transform: `translateX(${bookTranslateX}px)`, transition: 'transform 0.4s ease' }}>
           <div style={{ transform: 'scaleX(-1)' }}>
             <HTMLFlipBook
               ref={bookRef}
@@ -318,24 +354,23 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
               disableFlipByClick={false}
               useMouseEvents={true}
               clickEventForward={false}
-              style={{
-                boxShadow: '0 24px 70px rgba(0,0,0,0.72), 0 5px 16px rgba(0,0,0,0.55)',
-              }}
+              style={{ boxShadow: '0 24px 70px rgba(0,0,0,0.72), 0 5px 16px rgba(0,0,0,0.55)' }}
               className=""
               onFlip={(e: { data: number }) => {
                 setCurrentImageIndex(Math.min(total - 1, imageIndexForPage(e.data)))
                 playPageTurnSound()
               }}
             >
-              {displayUrls.flatMap((url, i) =>
-                i === 0
-                  ? [<Page key={`${url}-cover`} kind="cover" url={url} />]
-                  : [
-                      // Sides swapped vs LTR so panoramic image appears left→right on screen
-                      <Page key={`${url}-L`} kind="spread-half" url={url} side="right" />,
-                      <Page key={`${url}-R`} kind="spread-half" url={url} side="left" />,
-                    ]
-              )}
+              {displayUrls.flatMap((url, i) => {
+                if (i === 0)
+                  return [<Page key={`${url}-cover`} kind="cover" url={url} />]
+                if (lastPageSingle && i === total - 1)
+                  return [<Page key={`${url}-back`} kind="back-cover" url={url} />]
+                return [
+                  <Page key={`${url}-L`} kind="spread-half" url={url} side="right" />,
+                  <Page key={`${url}-R`} kind="spread-half" url={url} side="left" />,
+                ]
+              })}
             </HTMLFlipBook>
           </div>
         </div>
@@ -345,10 +380,62 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
           onClick={goPrev}
           disabled={currentImageIndex <= 0}
           className="absolute right-3 sm:right-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
-          aria-label="הקודם"
         >
           <ChevronRight size={26} />
         </button>
+      </div>
+
+      {/* Notes bar */}
+      <div className="shrink-0 px-10 sm:px-16 py-1.5" dir="rtl">
+        {noteEditIndex === currentImageIndex ? (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={noteDraft}
+              onChange={e => setNoteDraft(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') saveNote(currentImageIndex, noteDraft)
+                if (e.key === 'Escape') setNoteEditIndex(null)
+              }}
+              placeholder="כתבי הערה לצלמת..."
+              className="flex-1 bg-white/10 text-white placeholder-white/30 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/30 border border-white/10"
+            />
+            <button
+              onClick={() => saveNote(currentImageIndex, noteDraft)}
+              disabled={noteSaving}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-40"
+            >
+              {noteSaving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            </button>
+            <button
+              onClick={() => setNoteEditIndex(null)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/60 transition"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : currentNote ? (
+          <div className="flex items-center gap-2">
+            <MessageSquare size={13} className="text-amber-400 shrink-0" />
+            <p className="flex-1 text-white/75 text-sm truncate">{currentNote}</p>
+            {!isPhotographer && (
+              <button
+                onClick={() => { setNoteDraft(currentNote); setNoteEditIndex(currentImageIndex) }}
+                className="text-white/40 hover:text-white text-xs transition shrink-0"
+              >
+                ערוך
+              </button>
+            )}
+          </div>
+        ) : !isPhotographer ? (
+          <button
+            onClick={() => { setNoteDraft(''); setNoteEditIndex(currentImageIndex) }}
+            className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition"
+          >
+            <MessageSquare size={13} />
+            <span>הוסיפי הערה לצלמת</span>
+          </button>
+        ) : null}
       </div>
 
       {/* Thumbnail strip */}
@@ -361,6 +448,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
             const isSpread = i > 0
             const thumbW = isSpread ? spreadThumbW : coverThumbW
             const active = i === currentImageIndex
+            const hasNote = !!notes[String(i)]
             return (
               <button
                 key={`${url}-${i}`}
@@ -373,7 +461,6 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
                   height: THUMB_H,
                   borderColor: active ? '#ef4444' : 'transparent',
                 }}
-                aria-label={`עמודים ${getPageLabel(i)}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -383,8 +470,13 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
                   className="h-full w-full object-cover"
                 />
                 {isSpread && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white text-xs font-semibold tabular-nums">
-                    {getPageLabel(i)}
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/40 text-white text-[9px] font-semibold tabular-nums px-1 rounded">
+                    {getPageLabel(i, total, lastPageSingle)}
+                  </span>
+                )}
+                {hasNote && (
+                  <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-amber-400 flex items-center justify-center">
+                    <MessageSquare size={8} className="text-black" />
                   </span>
                 )}
               </button>

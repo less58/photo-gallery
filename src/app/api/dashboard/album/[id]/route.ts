@@ -23,6 +23,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     update.image_urls = body.imageUrls
     update.page_count = body.pageCount ?? body.imageUrls.length
   }
+  if (typeof body.lastPageSingle === 'boolean') update.last_page_single = body.lastPageSingle
+  if (body.spreadNotes !== undefined) update.spread_notes = body.spreadNotes
 
   if (Object.keys(update).length === 0) return Response.json({ error: 'אין מה לעדכן' }, { status: 400 })
 
