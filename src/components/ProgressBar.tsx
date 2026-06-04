@@ -9,25 +9,24 @@ type Props = {
 export default function ProgressBar({ selected, quota, color }: Props) {
   const pct = Math.min((selected / quota) * 100, 100)
   const over = selected > quota
+  const overBy = Math.max(0, selected - quota)
 
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-1.5 text-sm">
-        <span className="font-medium text-neutral-700">
-          {over ? (
-            <span className="text-amber-600">עברת את המכסה! ({selected}/{quota})</span>
-          ) : (
-            <span>נבחרו {selected} מתוך {quota} תמונות</span>
-          )}
+        <span className={over ? 'font-semibold text-red-400' : 'font-medium text-white/75'}>
+          {over
+            ? `עברת את המכסה (${selected}/${quota}) - יש להסיר ${overBy} תמונות בטאב "נבחרו"`
+            : `נבחרו ${selected} מתוך ${quota} תמונות`}
         </span>
-        <span className="text-neutral-400">{Math.round(pct)}%</span>
+        <span className="text-white/45 tabular-nums">{Math.round(pct)}%</span>
       </div>
-      <div className="h-2.5 bg-neutral-200 rounded-full overflow-hidden">
+      <div className="h-2.5 bg-white/12 rounded-full overflow-hidden">
         <div
           className="h-full rounded-full progress-fill"
           style={{
             width: `${pct}%`,
-            backgroundColor: over ? '#F59E0B' : color,
+            backgroundColor: over ? '#EF4444' : color,
           }}
         />
       </div>

@@ -335,11 +335,6 @@ export default function GalleryClient({
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <ProgressBar selected={approvedCount} quota={quota} color={color} />
-              {overQuota > 0 && (
-                <p className="text-[11px] mt-1 font-medium" style={{ color: '#ef4444' }}>
-                  נבחרו {approvedCount} — יש להסיר {overQuota} תמונות לפני השליחה
-                </p>
-              )}
             </div>
             {showSendButton && (
               <button

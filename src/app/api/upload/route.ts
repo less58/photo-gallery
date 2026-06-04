@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   if (watermarkPublicId) {
     transformation.push(
-      { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, flags: 'relative' },
+      { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, flags: 'relative:no_overflow' },
       { flags: 'layer_apply' }
     )
   } else if (watermarkText) {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
           color: colorVal,
           gravity: 'center',
           opacity: watermarkOpacity,
-          flags: 'tiled',
+          flags: 'tiled:no_overflow',
         },
         { flags: 'layer_apply' }
       )
@@ -68,11 +68,13 @@ export async function POST(req: NextRequest) {
           overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
           color: colorVal,
           gravity: 'center',
+          width: 0.92,
+          crop: 'fit',
           x: watermarkX - 0.5,
           y: watermarkY - 0.5,
           opacity: watermarkOpacity,
           angle: watermarkRotation || undefined,
-          flags: 'relative',
+          flags: 'relative:no_overflow',
         },
         { flags: 'layer_apply' }
       )
