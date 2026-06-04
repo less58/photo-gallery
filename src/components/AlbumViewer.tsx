@@ -28,15 +28,16 @@ type Props = {
   onClose: () => void
   allowDownload?: boolean
   isPhotographer?: boolean
+  color?: string
 }
 
 type AnimState = 'idle' | 'exiting' | 'entering'
 
 const EXIT_MS = 220
 
-export default function AlbumViewer({ album, onClose, allowDownload = false, isPhotographer = false }: Props) {
+export default function AlbumViewer({ album, onClose, allowDownload = false, isPhotographer = false, color }: Props) {
   if (album.image_urls?.length) {
-    return <AlbumFlipBook album={album} onClose={onClose} allowDownload={allowDownload} isPhotographer={isPhotographer} />
+    return <AlbumFlipBook album={album} onClose={onClose} allowDownload={allowDownload} isPhotographer={isPhotographer} color={color} />
   }
 
   return <PdfViewer album={album} onClose={onClose} allowDownload={allowDownload} />

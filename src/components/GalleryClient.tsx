@@ -708,7 +708,7 @@ export default function GalleryClient({
 
       {/* Album viewer */}
       {viewingAlbum && (
-        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} allowDownload={allowAlbumDownload} />
+        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} allowDownload={allowAlbumDownload} color={color} />
       )}
 
       {/* ── Lightbox ── */}

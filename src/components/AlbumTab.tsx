@@ -242,7 +242,7 @@ export default function AlbumTab({ portfolioId, color }: Props) {
       )}
 
       {viewingAlbum && (
-        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} isPhotographer={true} />
+        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} isPhotographer={true} color={color} />
       )}
 
       {showImageEditor && (

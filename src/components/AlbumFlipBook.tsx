@@ -99,9 +99,10 @@ type Props = {
   onClose: () => void
   allowDownload?: boolean
   isPhotographer?: boolean
+  color?: string
 }
 
-export default function AlbumFlipBook({ album, onClose, allowDownload = false, isPhotographer = false }: Props) {
+export default function AlbumFlipBook({ album, onClose, allowDownload = false, isPhotographer = false, color = '#e11d48' }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bookRef = useRef<any>(null)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -387,9 +388,13 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
       </div>
 
       {/* Notes bar */}
-      <div className="shrink-0 px-10 sm:px-16 py-1.5" dir="rtl">
+      <div className="shrink-0 px-10 sm:px-16 py-2" dir="rtl">
         {noteEditIndex === currentImageIndex ? (
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2 rounded-xl px-3 py-2 border"
+            style={{ background: color + '15', borderColor: color + '50' }}
+          >
+            <MessageSquare size={14} style={{ color }} className="shrink-0" />
             <input
               autoFocus
               value={noteDraft}
@@ -399,30 +404,34 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
                 if (e.key === 'Escape') setNoteEditIndex(null)
               }}
               placeholder="כתבי הערה לצלמת..."
-              className="flex-1 bg-white/10 text-white placeholder-white/30 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-white/30 border border-white/10"
+              className="flex-1 bg-transparent text-white placeholder-white/35 text-sm focus:outline-none"
             />
             <button
               onClick={() => saveNote(currentImageIndex, noteDraft)}
               disabled={noteSaving}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-40"
+              className="w-7 h-7 flex items-center justify-center rounded-lg text-white transition disabled:opacity-40"
+              style={{ background: color }}
             >
-              {noteSaving ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+              {noteSaving ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
             </button>
             <button
               onClick={() => setNoteEditIndex(null)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/60 transition"
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white/60 transition"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           </div>
         ) : currentNote ? (
-          <div className="flex items-center gap-2">
-            <MessageSquare size={13} className="text-amber-400 shrink-0" />
-            <p className="flex-1 text-white/75 text-sm truncate">{currentNote}</p>
+          <div
+            className="flex items-center gap-2 rounded-xl px-3 py-2 border"
+            style={{ background: color + '18', borderColor: color + '60' }}
+          >
+            <MessageSquare size={14} style={{ color }} className="shrink-0" />
+            <p className="flex-1 text-white/85 text-sm truncate">{currentNote}</p>
             {!isPhotographer && (
               <button
                 onClick={() => { setNoteDraft(currentNote); setNoteEditIndex(currentImageIndex) }}
-                className="text-white/40 hover:text-white text-xs transition shrink-0"
+                className="text-white/50 hover:text-white text-xs transition shrink-0 px-2"
               >
                 ערוך
               </button>
@@ -431,16 +440,16 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
         ) : !isPhotographer ? (
           <button
             onClick={() => { setNoteDraft(''); setNoteEditIndex(currentImageIndex) }}
-            className="flex items-center gap-1.5 text-white/30 hover:text-white/60 text-xs transition"
+            className="flex items-center gap-2 rounded-xl px-3 py-2 border border-dashed border-white/20 hover:border-white/40 text-white/35 hover:text-white/60 text-sm transition w-full"
           >
-            <MessageSquare size={13} />
-            <span>הוסיפי הערה לצלמת</span>
+            <MessageSquare size={14} />
+            <span>הוסיפי הערה לצלמת על עמוד זה...</span>
           </button>
         ) : null}
       </div>
 
-      {/* Thumbnail strip */}
-      <div className="shrink-0 bg-black/50 px-10 sm:px-16 py-3" dir="ltr">
+      {/* Thumbnail strip - dir=rtl so first image (cover) is on the right, matching Hebrew book direction */}
+      <div className="shrink-0 bg-black/50 px-10 sm:px-16 py-3" dir="rtl">
         <div
           className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1"
           style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.2) transparent' }}
