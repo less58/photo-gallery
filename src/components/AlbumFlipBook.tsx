@@ -13,8 +13,8 @@ function getDisplayUrl(url: string): string {
   return cloudinaryTransform(url, 'w_2200,q_auto:best,f_jpg')
 }
 
-function getThumbUrl(url: string, isSpread: boolean): string {
-  return cloudinaryTransform(url, `w_${isSpread ? 360 : 180},h_120,c_fit,q_auto:good,f_jpg`)
+function getThumbUrl(url: string, w: number, h: number): string {
+  return cloudinaryTransform(url, `w_${w * 2},h_${h * 2},c_fill,q_auto:good,f_jpg`)
 }
 
 function getPageLabel(index: number): string {
@@ -31,6 +31,38 @@ function imageIndexForPage(pageIndex: number): number {
   return pageIndex === 0 ? 0 : Math.floor((pageIndex - 1) / 2) + 1
 }
 
+const THUMB_H = 82
+const DEFAULT_SPREAD_ASPECT = 2
+const DEFAULT_COVER_ASPECT = 0.75
+
+function playPageTurnSound() {
+  try {
+    const ctx = new AudioContext()
+    const duration = 0.18
+    const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < data.length; i++) {
+      const t = i / data.length
+      data[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * t) * 0.09
+    }
+    const noise = ctx.createBufferSource()
+    noise.buffer = buffer
+    const filter = ctx.createBiquadFilter()
+    filter.type = 'bandpass'
+    filter.frequency.value = 1550
+    filter.Q.value = 0.75
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0.001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.035)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
+    noise.connect(filter)
+    filter.connect(gain)
+    gain.connect(ctx.destination)
+    noise.start()
+    noise.stop(ctx.currentTime + duration)
+  } catch { /* ignore audio errors */ }
+}
+
 type PageProps =
   | { kind: 'cover'; url: string }
   | { kind: 'spread-half'; url: string; side: 'left' | 'right' }
@@ -38,20 +70,20 @@ type PageProps =
 const Page = forwardRef<HTMLDivElement, PageProps>((props, ref) => {
   if (props.kind === 'cover') {
     return (
-      <div ref={ref} className="relative overflow-hidden bg-[#f4f0ea]">
+      <div ref={ref} className="relative overflow-hidden bg-black">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={props.url}
           alt=""
           draggable={false}
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover"
         />
       </div>
     )
   }
 
   return (
-    <div ref={ref} className="relative overflow-hidden bg-[#f4f0ea]">
+    <div ref={ref} className="relative overflow-hidden bg-black">
       <div
         className="absolute inset-0"
         style={{
@@ -79,28 +111,56 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
   const [downloading, setDownloading] = useState(false)
   const [pageW, setPageW] = useState(360)
   const [pageH, setPageH] = useState(520)
+  const [spreadAspect, setSpreadAspect] = useState(DEFAULT_SPREAD_ASPECT)
+  const [coverAspect, setCoverAspect] = useState(DEFAULT_COVER_ASPECT)
   const thumbRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const isManualTurn = useRef(false)
 
   const imageUrls = useMemo(() => album.image_urls ?? [], [album.image_urls])
   const total = imageUrls.length
   const displayUrls = useMemo(() => imageUrls.map(getDisplayUrl), [imageUrls])
 
   useEffect(() => {
+    const cover = imageUrls[0]
+    if (!cover) return
+    const img = new window.Image()
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setCoverAspect(img.naturalWidth / img.naturalHeight)
+      }
+    }
+    img.src = getDisplayUrl(cover)
+  }, [imageUrls])
+
+  useEffect(() => {
+    const firstSpread = imageUrls[1]
+    if (!firstSpread) return
+    const img = new window.Image()
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        setSpreadAspect(Math.max(1.35, Math.min(2.4, img.naturalWidth / img.naturalHeight)))
+      }
+    }
+    img.src = getDisplayUrl(firstSpread)
+  }, [imageUrls])
+
+  useEffect(() => {
     function calc() {
-      const thumbnailH = 126
+      const thumbnailH = THUMB_H + 32
       const headerH = 56
-      const availH = window.innerHeight - headerH - thumbnailH - 28
+      const availH = window.innerHeight - headerH - thumbnailH - 40
       const availW = window.innerWidth - 168
-      const pageFromH = Math.floor(availH / 1.38)
+      const pageAspect = spreadAspect / 2
+      const pageFromH = Math.floor(availH * pageAspect)
       const pageFromW = Math.floor(availW / 2)
-      const w = Math.max(170, Math.min(520, pageFromH, pageFromW))
+      const w = Math.max(170, Math.min(900, pageFromH, pageFromW))
       setPageW(w)
-      setPageH(Math.floor(w * 1.38))
+      setPageH(Math.floor(w / pageAspect))
     }
     calc()
     window.addEventListener('resize', calc)
     return () => window.removeEventListener('resize', calc)
-  }, [])
+  }, [spreadAspect])
 
   useEffect(() => {
     thumbRefs.current[currentImageIndex]?.scrollIntoView({
@@ -119,15 +179,17 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
   }, [currentImageIndex, imageUrls, total])
 
   const goToImage = useCallback((imageIndex: number) => {
-    bookRef.current?.pageFlip().flip(pageIndexForImage(imageIndex))
+    isManualTurn.current = true
+    bookRef.current?.pageFlip().turnToPage(pageIndexForImage(imageIndex))
     setCurrentImageIndex(imageIndex)
+    setTimeout(() => { isManualTurn.current = false }, 600)
   }, [])
 
   const goNext = useCallback(() => {
     setCurrentImageIndex(current => {
       if (current >= total - 1) return current
       const next = current + 1
-      bookRef.current?.pageFlip().flip(pageIndexForImage(next))
+      bookRef.current?.pageFlip().flipNext()
       return next
     })
   }, [total])
@@ -136,7 +198,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     setCurrentImageIndex(current => {
       if (current <= 0) return current
       const next = current - 1
-      bookRef.current?.pageFlip().flip(pageIndexForImage(next))
+      bookRef.current?.pageFlip().flipPrev()
       return next
     })
   }, [])
@@ -172,6 +234,9 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
     } catch { /* ignore */ }
     setDownloading(false)
   }
+
+  const coverThumbW = Math.round(THUMB_H * coverAspect)
+  const spreadThumbW = Math.round(THUMB_H * spreadAspect)
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col select-none bg-[#111]" dir="rtl">
@@ -223,9 +288,9 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
           height={pageH}
           size="fixed"
           minWidth={160}
-          maxWidth={560}
+          maxWidth={900}
           minHeight={220}
-          maxHeight={780}
+          maxHeight={900}
           usePortrait={false}
           showCover={true}
           flippingTime={850}
@@ -245,7 +310,9 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
           }}
           className=""
           onFlip={(e: { data: number }) => {
+            if (isManualTurn.current) return
             setCurrentImageIndex(Math.min(total - 1, imageIndexForPage(e.data)))
+            playPageTurnSound()
           }}
         >
           {displayUrls.flatMap((url, i) => (
@@ -269,10 +336,11 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
         </button>
       </div>
 
-      <div className="shrink-0 bg-white/10 px-10 sm:px-16 py-4" dir="ltr">
-        <div className="flex items-center gap-3 overflow-x-auto overscroll-x-contain pb-1">
+      <div className="shrink-0 bg-black/50 px-10 sm:px-16 py-3" dir="ltr">
+        <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1">
           {imageUrls.map((url, i) => {
             const isSpread = i > 0
+            const thumbW = isSpread ? spreadThumbW : coverThumbW
             const active = i === currentImageIndex
             return (
               <button
@@ -280,20 +348,20 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false }:
                 ref={el => { thumbRefs.current[i] = el }}
                 type="button"
                 onClick={() => goToImage(i)}
-                className="relative shrink-0 overflow-hidden border-2 bg-black/20 transition"
+                className="relative shrink-0 overflow-hidden border-2 transition"
                 style={{
-                  width: isSpread ? 250 : 118,
-                  height: 82,
+                  width: thumbW,
+                  height: THUMB_H,
                   borderColor: active ? '#ef4444' : 'transparent',
                 }}
                 aria-label={`עמודים ${getPageLabel(i)}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={getThumbUrl(url, isSpread)}
+                  src={getThumbUrl(url, thumbW, THUMB_H)}
                   alt=""
                   draggable={false}
-                  className="h-full w-full object-contain"
+                  className="h-full w-full object-cover"
                 />
                 {isSpread && (
                   <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white text-xs font-semibold tabular-nums">
