@@ -12,104 +12,112 @@ cloudinary.config({
 })
 
 export async function POST(req: NextRequest) {
-  const formData = await req.formData()
-  const file = formData.get('file') as File
-  const folder = (formData.get('folder') as string) || 'photos'
-  const extractColors = formData.get('extractColors') === 'true'
+  try {
+    const formData = await req.formData()
+    const file = formData.get('file') as File
+    const folder = (formData.get('folder') as string) || 'photos'
+    const extractColors = formData.get('extractColors') === 'true'
 
-  // Image watermark
-  const watermarkPublicId = formData.get('watermarkPublicId') as string | null
-  const watermarkImageOpacity = parseInt((formData.get('watermarkImageOpacity') as string | null) ?? '20', 10)
+    // Image watermark
+    const watermarkPublicId = formData.get('watermarkPublicId') as string | null
+    const watermarkImageOpacity = parseInt((formData.get('watermarkImageOpacity') as string | null) ?? '20', 10)
 
-  // Text watermark
-  const watermarkText = formData.get('watermarkText') as string | null
-  const watermarkOpacity = parseInt((formData.get('watermarkOpacity') as string | null) ?? '30', 10)
-  const watermarkPosition = (formData.get('watermarkPosition') as string | null) ?? 'free'
-  const watermarkFontSize = parseInt((formData.get('watermarkFontSize') as string | null) ?? '120', 10)
-  const watermarkColor = (formData.get('watermarkColor') as string | null) ?? '#ffffff'
-  const watermarkX = parseFloat((formData.get('watermarkX') as string | null) ?? '0.5')
-  const watermarkY = parseFloat((formData.get('watermarkY') as string | null) ?? '0.85')
-  const watermarkRotation = parseInt((formData.get('watermarkRotation') as string | null) ?? '0', 10)
+    // Text watermark
+    const watermarkText = formData.get('watermarkText') as string | null
+    const watermarkOpacity = parseInt((formData.get('watermarkOpacity') as string | null) ?? '30', 10)
+    const watermarkPosition = (formData.get('watermarkPosition') as string | null) ?? 'free'
+    const watermarkFontSize = parseInt((formData.get('watermarkFontSize') as string | null) ?? '120', 10)
+    const watermarkColor = (formData.get('watermarkColor') as string | null) ?? '#ffffff'
+    const watermarkX = parseFloat((formData.get('watermarkX') as string | null) ?? '0.5')
+    const watermarkY = parseFloat((formData.get('watermarkY') as string | null) ?? '0.85')
+    const watermarkRotation = parseInt((formData.get('watermarkRotation') as string | null) ?? '0', 10)
 
-  if (!file) return Response.json({ error: 'חסר קובץ' }, { status: 400 })
-  if (!file.type.startsWith('image/')) return Response.json({ error: 'סוג קובץ לא נתמך' }, { status: 400 })
-  if (file.size > MAX_FILE_SIZE) return Response.json({ error: 'הקובץ גדול מדי (מקסימום 50MB)' }, { status: 400 })
+    if (!file) return Response.json({ error: 'חסר קובץ' }, { status: 400 })
+    if (!file.type.startsWith('image/')) return Response.json({ error: 'סוג קובץ לא נתמך' }, { status: 400 })
+    if (file.size > MAX_FILE_SIZE) return Response.json({ error: 'הקובץ גדול מדי (מקסימום 50MB)' }, { status: 400 })
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
 
-  const transformation: object[] = folder !== 'watermarks'
-    ? [{ width: 1920, crop: 'limit', quality: 'auto:best' }]
-    : []
+    const transformation: object[] = folder !== 'watermarks'
+      ? [{ width: 1920, crop: 'limit', quality: 'auto:best' }]
+      : []
 
-  if (watermarkPublicId) {
-    transformation.push(
-      { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, flags: 'relative:no_overflow' },
-      { flags: 'layer_apply' }
+    if (watermarkPublicId) {
+      transformation.push(
+        { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') } },
+        { gravity: 'center', width: 0.6, opacity: watermarkImageOpacity, flags: 'layer_apply:no_overflow:relative' }
+      )
+    } else if (watermarkText) {
+      const isTiled = watermarkPosition === 'tiled'
+      const colorVal = watermarkColor.startsWith('#') ? `rgb:${watermarkColor.slice(1)}` : watermarkColor
+
+      if (isTiled) {
+        transformation.push(
+          {
+            overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
+            color: colorVal,
+            gravity: 'center',
+            opacity: watermarkOpacity,
+            flags: 'tiled',
+          },
+          { flags: 'layer_apply:no_overflow' }
+        )
+      } else {
+        transformation.push(
+          {
+            overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
+            color: colorVal,
+            width: 0.92,
+            crop: 'fit',
+            flags: 'relative',
+          },
+          {
+            gravity: 'center',
+            x: watermarkX - 0.5,
+            y: watermarkY - 0.5,
+            opacity: watermarkOpacity,
+            angle: watermarkRotation || undefined,
+            flags: 'layer_apply:no_overflow:relative',
+          }
+        )
+      }
+    }
+
+    const uploadOptions: Record<string, unknown> = {
+      folder,
+      resource_type: 'image',
+      colors: extractColors,
+    }
+    if (transformation.length) uploadOptions.transformation = transformation
+
+    const result = await new Promise<{ secure_url: string; public_id: string; colors?: [string, number][] }>(
+      (resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          uploadOptions,
+          (err, res) => {
+            if (err || !res) return reject(err)
+            resolve(res as { secure_url: string; public_id: string; colors?: [string, number][] })
+          }
+        ).end(buffer)
+      }
     )
-  } else if (watermarkText) {
-    const isTiled = watermarkPosition === 'tiled'
-    const colorVal = watermarkColor.startsWith('#') ? `rgb:${watermarkColor.slice(1)}` : watermarkColor
 
-    if (isTiled) {
-      transformation.push(
-        {
-          overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
-          color: colorVal,
-          gravity: 'center',
-          opacity: watermarkOpacity,
-          flags: 'tiled:no_overflow',
-        },
-        { flags: 'layer_apply' }
-      )
-    } else {
-      transformation.push(
-        {
-          overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
-          color: colorVal,
-          gravity: 'center',
-          width: 0.92,
-          crop: 'fit',
-          x: watermarkX - 0.5,
-          y: watermarkY - 0.5,
-          opacity: watermarkOpacity,
-          angle: watermarkRotation || undefined,
-          flags: 'relative:no_overflow',
-        },
-        { flags: 'layer_apply' }
-      )
-    }
+    const thumbnailUrl = folder !== 'watermarks' && folder !== 'logos'
+      ? result.secure_url.replace('/upload/', '/upload/w_600,q_auto:best/')
+      : result.secure_url
+
+    const dominantColors = result.colors?.slice(0, 6).map(([hex]) => hex) ?? []
+
+    return Response.json({
+      url: result.secure_url,
+      thumbnailUrl,
+      publicId: result.public_id,
+      colors: dominantColors,
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[upload] Cloudinary error:', message)
+    return Response.json({ error: message }, { status: 500 })
   }
-
-  const uploadOptions: Record<string, unknown> = {
-    folder,
-    resource_type: 'image',
-    colors: extractColors,
-  }
-  if (transformation.length) uploadOptions.transformation = transformation
-
-  const result = await new Promise<{ secure_url: string; public_id: string; colors?: [string, number][] }>(
-    (resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        uploadOptions,
-        (err, res) => {
-          if (err || !res) return reject(err)
-          resolve(res as { secure_url: string; public_id: string; colors?: [string, number][] })
-        }
-      ).end(buffer)
-    }
-  )
-
-  const thumbnailUrl = folder !== 'watermarks' && folder !== 'logos'
-    ? result.secure_url.replace('/upload/', '/upload/w_600,q_auto:best/')
-    : result.secure_url
-
-  const dominantColors = result.colors?.slice(0, 6).map(([hex]) => hex) ?? []
-
-  return Response.json({
-    url: result.secure_url,
-    thumbnailUrl,
-    publicId: result.public_id,
-    colors: dominantColors,
-  })
 }
