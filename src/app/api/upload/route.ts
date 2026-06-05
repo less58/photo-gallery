@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
     if (watermarkPublicId) {
       transformation.push(
         { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') } },
-        { gravity: 'center', width: 0.6, opacity: watermarkImageOpacity, flags: 'layer_apply:no_overflow:relative' }
+        { width: 0.6, flags: 'relative' },
+        { gravity: 'center', opacity: watermarkImageOpacity, flags: 'layer_apply:no_overflow' }
       )
     } else if (watermarkText) {
       const isTiled = watermarkPosition === 'tiled'
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
             y: watermarkY - 0.5,
             opacity: watermarkOpacity,
             angle: watermarkRotation || undefined,
-            flags: 'layer_apply:no_overflow:relative',
+            flags: 'layer_apply:relative',
           }
         )
       }
