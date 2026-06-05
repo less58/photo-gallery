@@ -45,9 +45,8 @@ export async function POST(req: NextRequest) {
 
     if (watermarkPublicId) {
       transformation.push(
-        { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') } },
-        { width: 0.6, flags: 'relative' },
-        { gravity: 'center', opacity: watermarkImageOpacity, flags: 'layer_apply:no_overflow' }
+        { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, flags: 'relative' },
+        { flags: 'layer_apply' }
       )
     } else if (watermarkText) {
       const isTiled = watermarkPosition === 'tiled'
@@ -62,25 +61,21 @@ export async function POST(req: NextRequest) {
             opacity: watermarkOpacity,
             flags: 'tiled',
           },
-          { flags: 'layer_apply:no_overflow' }
+          { flags: 'layer_apply' }
         )
       } else {
         transformation.push(
           {
             overlay: { font_family: 'Heebo', font_size: watermarkFontSize, font_weight: 'bold', text: watermarkText },
             color: colorVal,
-            width: 0.92,
-            crop: 'fit',
-            flags: 'relative',
-          },
-          {
             gravity: 'center',
             x: watermarkX - 0.5,
             y: watermarkY - 0.5,
             opacity: watermarkOpacity,
             angle: watermarkRotation || undefined,
-            flags: 'layer_apply:relative',
-          }
+            flags: 'relative',
+          },
+          { flags: 'layer_apply' }
         )
       }
     }
