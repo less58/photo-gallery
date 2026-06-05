@@ -116,8 +116,10 @@ export async function POST(req: NextRequest) {
       colors: dominantColors,
     })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[upload] Cloudinary error:', message)
+    const message = err instanceof Error
+      ? err.message
+      : (err && typeof err === 'object' ? JSON.stringify(err) : String(err))
+    console.error('[upload] Cloudinary error:', err)
     return Response.json({ error: message }, { status: 500 })
   }
 }
