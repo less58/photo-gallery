@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, FormEvent } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { Lock } from 'lucide-react'
 
 export default function PasswordEntryPage() {
   const params = useParams()
-  const router = useRouter()
   const id = params.id as string
 
   const [password, setPassword] = useState('')
@@ -27,14 +26,15 @@ export default function PasswordEntryPage() {
       })
 
       if (res.ok) {
-        router.replace(`/portfolio/${id}`)
+        // Full page load so the session cookie is read fresh by the server
+        window.location.replace(`/portfolio/${id}`)
       } else {
         const data = await res.json()
         setError(data.error || 'קוד שגוי')
+        setLoading(false)
       }
     } catch {
       setError('שגיאת חיבור')
-    } finally {
       setLoading(false)
     }
   }

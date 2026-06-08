@@ -75,8 +75,8 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
         setLoading(false)
         return
       }
-      if (!/[a-zA-Zא-ת]/.test(pw) || !/[0-9]/.test(pw)) {
-        toast('הקוד חייב לכלול גם אותיות וגם מספרים', 'error')
+      if (pw.length < 6 || pw.length > 10) {
+        toast('הקוד חייב להיות בין 6 ל-10 תווים', 'error')
         setLoading(false)
         return
       }
@@ -139,7 +139,7 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
               placeholder="לדוגמה: noa2024"
               autoComplete="off"
             />
-            <p className="text-xs text-stone-400 mt-1">חייב לכלול אותיות ומספרים. הלקוחה תזין קוד זה לכניסה לגלריה.</p>
+            <p className="text-xs text-stone-400 mt-1">6–10 תווים. הלקוחה תזין קוד זה לכניסה לגלריה.</p>
           </div>
 
           <div>

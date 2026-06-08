@@ -171,8 +171,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
 
   async function savePassword() {
     const pw = clientPassword.trim()
-    if (pw && (!/[a-zA-Zא-ת]/.test(pw) || !/[0-9]/.test(pw))) {
-      toast('הקוד חייב לכלול גם אותיות וגם מספרים', 'error')
+    if (pw && (pw.length < 6 || pw.length > 10)) {
+      toast('הקוד חייב להיות בין 6 ל-10 תווים', 'error')
       return
     }
     setSavingPassword(true)
