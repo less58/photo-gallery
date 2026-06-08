@@ -53,6 +53,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [activeUploadSession, setActiveUploadSession] = useState<string | null>(null)
   const [siteOrigin, setSiteOrigin] = useState('')
   const [copied, setCopied] = useState(false)
+  const [clientPassword, setClientPassword] = useState<string>((portfolio as Record<string, unknown>).client_password as string ?? '')
+  const [savingPassword, setSavingPassword] = useState(false)
   const [coverUrl, setCoverUrl] = useState<string | null>(portfolio.cover_url)
   const [uploadingCover, setUploadingCover] = useState(false)
   const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null)
@@ -167,6 +169,21 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     setTimeout(() => setCopied(false), 2000)
   }
 
+  async function savePassword() {
+    setSavingPassword(true)
+    try {
+      await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_password: clientPassword }),
+      })
+      toast(clientPassword ? 'קוד כניסה נשמר' : 'הגנת קוד הוסרה')
+    } catch {
+      toast('שגיאה בשמירה', 'error')
+    }
+    setSavingPassword(false)
+  }
+
   async function doSendEmail(type?: EmailModalType, subject?: string, body?: string) {
     setShowResendConfirm(false)
     setShowEmailModal(false)
@@ -211,8 +228,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   }
 
   function sendEmailToClient() {
+    if (!clientPassword) {
+      toast('לא ניתן לשלוח מייל — יש להגדיר קוד גישה ללקוחה תחילה', 'error')
+      return
+    }
     if (emailSent) { setShowResendConfirm(true); return }
-    // Show type selection modal
     setShowNoEmailConfig(false)
     setShowResendConfirm(false)
     openEmailModal('selection')
@@ -651,6 +671,18 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         </div>
       </div>
 
+      {/* Warning: no password set */}
+      {!clientPassword && (
+        <div className="rounded-xl px-4 py-2.5 mb-3 flex items-center gap-2 text-sm"
+          style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+          <span className="text-orange-400 text-base shrink-0">⚠️</span>
+          <p className="text-orange-700 text-xs leading-snug">
+            <span className="font-semibold">לא הוגדר קוד גישה.</span> הגלריה אינה פעילה ולא ניתן לשלוח מייל.
+            יש להגדיר קוד גישה בשדה למטה.
+          </p>
+        </div>
+      )}
+
       {/* Magic link banner */}
       <div className="rounded-xl px-4 py-3 mb-4 flex flex-wrap gap-x-3 gap-y-1.5 items-center"
         style={{ background: color + '12', border: `1px solid ${color}30` }}>
@@ -682,6 +714,41 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             </button>
           )}
         </div>
+      </div>
+
+      {/* Gallery password */}
+      <div className="rounded-xl px-4 py-3 mb-4"
+        style={{
+          background: clientPassword ? '#f0fdf4' : '#fff7ed',
+          border: `1px solid ${clientPassword ? '#bbf7d0' : '#fed7aa'}`,
+        }}>
+        <div className="flex flex-wrap gap-x-3 gap-y-1.5 items-center">
+          <span className="font-medium text-sm" style={{ color: clientPassword ? '#15803d' : '#c2410c' }}>
+            {clientPassword ? '🔒 קוד גישה:' : '🔓 קוד גישה (חובה):'}
+          </span>
+          <input
+            value={clientPassword}
+            onChange={e => setClientPassword(e.target.value)}
+            placeholder="הזיני קוד גישה ללקוחה"
+            type="text"
+            autoComplete="off"
+            className="flex-1 min-w-[140px] text-sm border border-stone-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-stone-400 bg-white"
+          />
+          <button
+            type="button"
+            onClick={savePassword}
+            disabled={savingPassword}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+            style={{ background: color, color: '#fff' }}
+          >
+            {savingPassword ? 'שומר...' : 'שמור'}
+          </button>
+        </div>
+        <p className="text-xs mt-1.5" style={{ color: clientPassword ? '#166534' : '#9a3412' }}>
+          {clientPassword
+            ? 'הגלריה פעילה — הלקוחה תתבקש להזין קוד זה בעת הכניסה'
+            : 'הגלריה אינה פעילה — יש לשמור קוד גישה כדי לאפשר כניסה ושליחת מייל'}
+        </p>
       </div>
 
       {/* Resend email confirmation */}

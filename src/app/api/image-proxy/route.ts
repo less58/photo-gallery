@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 
 export async function GET(req: NextRequest) {
+  const cookieStore = await cookies()
+  const sessionRaw = cookieStore.get('portfolio_session')?.value
+  if (!sessionRaw) return new Response('unauthorized', { status: 401 })
+
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return new Response('missing url', { status: 400 })
 
@@ -12,7 +17,7 @@ export async function GET(req: NextRequest) {
     return new Response(buf, {
       headers: {
         'content-type': ct,
-        'cache-control': 'public, max-age=86400, immutable',
+        'cache-control': 'private, max-age=86400',
       },
     })
   } catch {

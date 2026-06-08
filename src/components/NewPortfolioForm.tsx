@@ -16,6 +16,7 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
     title: '',
     instructions: defaultInstructions,
     quota: 30,
+    clientPassword: '',
   })
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
@@ -68,6 +69,12 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
         }
       }
 
+      if (!form.clientPassword.trim()) {
+        toast('יש להגדיר קוד גישה ללקוחה', 'error')
+        setLoading(false)
+        return
+      }
+
       const res = await fetch('/api/dashboard/portfolio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -111,6 +118,22 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
             <label className={lbl}>שם התיק</label>
             <input required value={form.title} onChange={e => update('title', e.target.value)}
               className={inp} placeholder="למשל: צילומי לידה — ניניטה" />
+          </div>
+
+          <div>
+            <label className={lbl}>
+              קוד גישה ללקוחה
+              <span className="text-red-400 mr-1">*</span>
+            </label>
+            <input
+              required
+              value={form.clientPassword}
+              onChange={e => update('clientPassword', e.target.value)}
+              className={inp}
+              placeholder="קוד שישלח ללקוחה לכניסה לגלריה"
+              autoComplete="off"
+            />
+            <p className="text-xs text-stone-400 mt-1">הלקוחה תצטרך להזין קוד זה כדי לצפות בגלריה</p>
           </div>
 
           <div>

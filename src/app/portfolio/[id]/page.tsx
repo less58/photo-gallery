@@ -30,6 +30,11 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
 
   const color = photographer.brand_color || '#C97B73'
 
+  function proxy(url: string | null): string | null {
+    if (!url) return null
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`
+  }
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
@@ -43,7 +48,7 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
         {/* Logo */}
         {photographer.logo_url ? (
           <div className="w-36 h-36 relative">
-            <Image src={photographer.logo_url} alt={photographer.name} fill unoptimized className="object-contain" />
+            <Image src={proxy(photographer.logo_url)!} alt={photographer.name} fill unoptimized className="object-contain" />
           </div>
         ) : (
           <div className="text-2xl font-bold" style={{ color }}>{photographer.name}</div>
@@ -51,9 +56,10 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
 
         {/* Cover image */}
         {portfolio.cover_url && (
-          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl">
-            <Image src={portfolio.cover_url} alt={portfolio.title} width={600} height={450}
-              unoptimized className="w-full h-full object-cover" priority />
+          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl"
+            onContextMenu={e => e.preventDefault()}>
+            <Image src={proxy(portfolio.cover_url)!} alt={portfolio.title} width={600} height={450}
+              unoptimized draggable={false} className="w-full h-full object-cover" priority />
           </div>
         )}
 

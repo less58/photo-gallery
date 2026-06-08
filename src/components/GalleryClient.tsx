@@ -285,7 +285,8 @@ export default function GalleryClient({
   const isApproveBlocked = false // selection now allows over-quota with warning
 
   return (
-    <div className="min-h-screen" style={{ background: '#0A0A0A', color: '#fff' }}>
+    <div className="min-h-screen" style={{ background: '#0A0A0A', color: '#fff' }}
+      onContextMenu={e => e.preventDefault()}>
 
       {/* ── HERO / Cover ── */}
       {coverUrl ? (
@@ -463,7 +464,7 @@ export default function GalleryClient({
                     <button
                       type="button"
                       onClick={() => handleMark(photo.id, null)}
-                      className="absolute top-2 left-2 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                      className="absolute top-2 left-2 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow"
                       title="הסר בחירה"
                     >
                       <X size={13} className="text-white" />
@@ -635,10 +636,19 @@ export default function GalleryClient({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {albums.map(album => {
+                const PROXY_PFX = '/api/image-proxy?url='
+                function albumTransform(url: string, transform: string): string {
+                  if (url.startsWith(PROXY_PFX)) {
+                    const orig = decodeURIComponent(url.slice(PROXY_PFX.length))
+                    const t = orig.includes('/upload/') ? orig.replace('/upload/', `/upload/${transform}/`) : orig
+                    return `${PROXY_PFX}${encodeURIComponent(t)}`
+                  }
+                  return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
+                }
                 const coverUrl = album.image_urls?.[0]
-                  ? album.image_urls[0].replace('/upload/', '/upload/w_600,h_400,c_fill,q_auto,f_jpg/')
+                  ? albumTransform(album.image_urls[0], 'w_600,h_400,c_fill,q_auto,f_jpg')
                   : album.pdf_url
-                    ? album.pdf_url.replace('/upload/', '/upload/pg_1,f_jpg,w_600,h_400,c_fill,q_auto/')
+                    ? albumTransform(album.pdf_url, 'pg_1,f_jpg,w_600,h_400,c_fill,q_auto')
                     : null
                 return (
                 <button

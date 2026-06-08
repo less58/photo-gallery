@@ -6,6 +6,14 @@ import { ChevronLeft, ChevronRight, X, Download, Loader2, MessageSquare, Send } 
 import type { Album } from '@/lib/types'
 
 function cloudinaryTransform(url: string, transform: string): string {
+  const PROXY_PREFIX = '/api/image-proxy?url='
+  if (url.startsWith(PROXY_PREFIX)) {
+    const original = decodeURIComponent(url.slice(PROXY_PREFIX.length))
+    const transformed = original.includes('/upload/')
+      ? original.replace('/upload/', `/upload/${transform}/`)
+      : original
+    return `${PROXY_PREFIX}${encodeURIComponent(transformed)}`
+  }
   return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
 }
 
@@ -294,7 +302,8 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
   const bookTranslateX = isOnCover ? pageW / 2 : isOnBackCover ? -pageW / 2 : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col select-none bg-[#111]" dir="rtl">
+    <div className="fixed inset-0 z-50 flex flex-col select-none bg-[#111]" dir="rtl"
+      onContextMenu={e => e.preventDefault()}>
       {/* Header */}
       <div
         className="shrink-0 flex items-center justify-between px-5 py-3 gap-4"

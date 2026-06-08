@@ -6,12 +6,23 @@ import type { Album } from '@/lib/types'
 import AlbumViewer from './AlbumViewer'
 import AlbumImageEditor from './AlbumImageEditor'
 
+const PROXY_PFX = '/api/image-proxy?url='
+
+function applyTransform(url: string, transform: string): string {
+  if (url.startsWith(PROXY_PFX)) {
+    const orig = decodeURIComponent(url.slice(PROXY_PFX.length))
+    const t = orig.includes('/upload/') ? orig.replace('/upload/', `/upload/${transform}/`) : orig
+    return `${PROXY_PFX}${encodeURIComponent(t)}`
+  }
+  return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
+}
+
 function getAlbumThumb(album: Album): string | null {
   if (album.image_urls?.[0]) {
-    return album.image_urls[0].replace('/upload/', '/upload/w_120,h_80,c_fill,q_auto,f_jpg/')
+    return applyTransform(album.image_urls[0], 'w_120,h_80,c_fill,q_auto,f_jpg')
   }
   if (album.pdf_url) {
-    return album.pdf_url.replace('/upload/', '/upload/pg_1,f_jpg,w_120,h_80,c_fill,q_auto/')
+    return applyTransform(album.pdf_url, 'pg_1,f_jpg,w_120,h_80,c_fill,q_auto')
   }
   return null
 }
@@ -203,7 +214,7 @@ export default function AlbumTab({ portfolioId, color }: Props) {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button
                     type="button"
                     onClick={() => setViewingAlbum(album)}

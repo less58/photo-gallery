@@ -14,13 +14,27 @@ const AlbumFlipBook = dynamic(() => import('./AlbumFlipBook'), {
   ),
 })
 
+const PROXY_PREFIX = '/api/image-proxy?url='
+
+function applyCloudinaryTransform(url: string, transform: string): string {
+  if (url.startsWith(PROXY_PREFIX)) {
+    const original = decodeURIComponent(url.slice(PROXY_PREFIX.length))
+    const transformed = original.includes('/upload/')
+      ? original.replace('/upload/', `/upload/${transform}/`)
+      : original
+    return `${PROXY_PREFIX}${encodeURIComponent(transformed)}`
+  }
+  return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
+}
+
 function getPageUrl(album: Album, idx: number): string {
   if (album.image_urls?.length) {
     const url = album.image_urls[idx] ?? ''
-    return url.replace('/upload/', '/upload/w_1800,q_auto:best,f_jpg/')
+    return applyCloudinaryTransform(url, 'w_1800,q_auto:best,f_jpg')
   }
   const page = idx + 1
-  return (album.pdf_url ?? '').replace('/upload/', `/upload/pg_${page},f_jpg,w_1800,q_auto:best/`)
+  const pdfUrl = album.pdf_url ?? ''
+  return applyCloudinaryTransform(pdfUrl, `pg_${page},f_jpg,w_1800,q_auto:best`)
 }
 
 type Props = {
@@ -186,6 +200,7 @@ function PdfViewer({ album, onClose, allowDownload = false }: Props) {
       className="fixed inset-0 z-50 flex flex-col select-none"
       style={{ background: '#111' }}
       dir="rtl"
+      onContextMenu={e => e.preventDefault()}
     >
       {/* ── Header ── */}
       <div

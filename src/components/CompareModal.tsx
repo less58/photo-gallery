@@ -69,6 +69,7 @@ export default function CompareModal({ photos, selections, isApproveBlocked, onM
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
       onClick={onClose}
+      onContextMenu={e => e.preventDefault()}
     >
       <div
         className="modal-pop bg-neutral-900 rounded-2xl overflow-hidden w-full max-w-6xl flex flex-col"

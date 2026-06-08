@@ -17,6 +17,7 @@ export type Portfolio = {
   magic_token: string | null
   instructions: string | null
   quota: number
+  client_password?: string | null
   created_at: string
   photographer?: Photographer
 }

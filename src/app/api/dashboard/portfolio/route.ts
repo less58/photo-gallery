@@ -47,9 +47,12 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
-  const { clientEmail, title, instructions, quota, coverUrl } = await req.json()
+  const { clientEmail, title, instructions, quota, coverUrl, clientPassword } = await req.json()
   if (!clientEmail || !title) {
     return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
+  }
+  if (!clientPassword?.trim()) {
+    return Response.json({ error: 'יש להגדיר קוד גישה ללקוחה' }, { status: 400 })
   }
 
   const admin = createAdminClient()
@@ -83,6 +86,7 @@ export async function POST(req: NextRequest) {
       password_hash: passwordHash,
       magic_token: magicToken,
       cover_url: coverUrl || null,
+      client_password: clientPassword.trim(),
     })
     .select('id').single()
 

@@ -55,6 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('cover_url' in updates) allowed.cover_url = updates.cover_url
   if ('instructions' in updates) allowed.instructions = updates.instructions
   if ('is_done' in updates) allowed.is_done = updates.is_done
+  if ('client_password' in updates) allowed.client_password = updates.client_password || null
 
   if ('quota' in updates) {
     const { count } = await admin

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   const admin = createAdminClient()
   const { data: portfolio } = await admin
     .from('portfolios')
-    .select('id, client_email')
+    .select('id, client_email, client_password')
     .eq('magic_token', token)
     .maybeSingle()
 
@@ -17,16 +17,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
   }
 
   const cookieStore = await cookies()
-  cookieStore.set('portfolio_session', JSON.stringify({
-    portfolioId: portfolio.id,
-    email: portfolio.client_email,
-  }), {
+  const cookieOpts = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     maxAge: 60 * 60 * 24 * 30,
     path: '/',
-  })
+  }
 
-  return NextResponse.redirect(new URL(`/portfolio/${portfolio.id}`, req.url))
+  if (!portfolio.client_password) {
+    return NextResponse.redirect(new URL(`/portfolio/${portfolio.id}/inactive`, req.url))
+  }
+
+  cookieStore.set('portfolio_session_pending', JSON.stringify({
+    portfolioId: portfolio.id,
+    email: portfolio.client_email,
+  }), cookieOpts)
+
+  return NextResponse.redirect(new URL(`/portfolio/${portfolio.id}/enter`, req.url))
 }

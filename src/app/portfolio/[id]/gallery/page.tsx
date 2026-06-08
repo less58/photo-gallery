@@ -54,12 +54,41 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
 
   const ph = (portfolio.photographer ?? {}) as Record<string, unknown>
 
+  function proxy(url: string | null | undefined): string | null {
+    if (!url) return null
+    return `/api/image-proxy?url=${encodeURIComponent(url)}`
+  }
+
+  function proxyPhoto(photo: Photo): Photo {
+    return {
+      ...photo,
+      url: proxy(photo.url) ?? photo.url,
+      thumbnail_url: photo.thumbnail_url ? proxy(photo.thumbnail_url) : null,
+    }
+  }
+
   const allSessions = (rawSessions || []).map(s => ({
     ...s,
-    photos: ((s.photos as Photo[]) || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+    photos: ((s.photos as Photo[]) || [])
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(proxyPhoto),
   }))
 
   const allPhotos: Photo[] = allSessions.flatMap(s => s.photos || [])
+
+  const proxiedAlbums = ((albumsData || []) as Album[]).map(album => ({
+    ...album,
+    image_urls: album.image_urls?.map(u => proxy(u) ?? u) ?? null,
+    pdf_url: proxy(album.pdf_url),
+  }))
+
+  const proxiedCollages = ((collagesData || []) as Collage[]).map(collage => ({
+    ...collage,
+    cells: collage.cells.map(cell => ({
+      ...cell,
+      photo_url: cell.photo_url ? proxy(cell.photo_url) : null,
+    })),
+  }))
 
   return (
     <GalleryClient
@@ -70,14 +99,14 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       color={String(ph.brand_color || '#C97B73')}
       portfolioId={id}
       portfolioTitle={portfolio.title ?? ''}
-      coverUrl={(portfolio.cover_url as string) ?? null}
+      coverUrl={proxy(portfolio.cover_url as string)}
       instructions={portfolio.instructions ?? null}
       photographerName={String(ph.name || '')}
-      logoUrl={(ph.logo_url as string) ?? null}
+      logoUrl={proxy(ph.logo_url as string)}
       showSendButton={ph.receive_selection_emails !== false}
       isDone={(portfolio.is_done as boolean) ?? false}
-      collages={(collagesData || []) as Collage[]}
-      albums={(albumsData || []) as Album[]}
+      collages={proxiedCollages}
+      albums={proxiedAlbums}
       allowAlbumDownload={(ph.allow_album_download as boolean) === true}
     />
   )
