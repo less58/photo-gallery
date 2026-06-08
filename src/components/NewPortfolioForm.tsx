@@ -69,8 +69,14 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
         }
       }
 
-      if (!form.clientPassword.trim()) {
+      const pw = form.clientPassword.trim()
+      if (!pw) {
         toast('יש להגדיר קוד גישה ללקוחה', 'error')
+        setLoading(false)
+        return
+      }
+      if (!/[a-zA-Zא-ת]/.test(pw) || !/[0-9]/.test(pw)) {
+        toast('הקוד חייב לכלול גם אותיות וגם מספרים', 'error')
         setLoading(false)
         return
       }
@@ -130,10 +136,10 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
               value={form.clientPassword}
               onChange={e => update('clientPassword', e.target.value)}
               className={inp}
-              placeholder="קוד שישלח ללקוחה לכניסה לגלריה"
+              placeholder="לדוגמה: noa2024"
               autoComplete="off"
             />
-            <p className="text-xs text-stone-400 mt-1">הלקוחה תצטרך להזין קוד זה כדי לצפות בגלריה</p>
+            <p className="text-xs text-stone-400 mt-1">חייב לכלול אותיות ומספרים. הלקוחה תזין קוד זה לכניסה לגלריה.</p>
           </div>
 
           <div>
