@@ -80,6 +80,11 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
         setLoading(false)
         return
       }
+      if (!/^[a-zA-Z0-9]+$/.test(pw)) {
+        toast('ניתן להשתמש רק באותיות אנגלית ומספרים', 'error')
+        setLoading(false)
+        return
+      }
 
       const res = await fetch('/api/dashboard/portfolio', {
         method: 'POST',
@@ -139,7 +144,7 @@ export default function NewPortfolioForm({ defaultInstructions }: { defaultInstr
               placeholder="לדוגמה: noa2024"
               autoComplete="off"
             />
-            <p className="text-xs text-stone-400 mt-1">6–10 תווים. הלקוחה תזין קוד זה לכניסה לגלריה.</p>
+            <p className="text-xs text-stone-400 mt-1">6–10 תווים, אותיות אנגלית ומספרים בלבד.</p>
           </div>
 
           <div>

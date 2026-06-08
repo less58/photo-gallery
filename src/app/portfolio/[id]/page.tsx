@@ -40,12 +40,10 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
       className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
       style={{ background: '#0A0A0A' }}
     >
-      {/* Soft color glow background */}
       <div className="absolute inset-0 opacity-30 pointer-events-none"
         style={{ background: `radial-gradient(ellipse at 50% 60%, ${color}40, transparent 70%)` }} />
 
       <div className="relative z-10 flex flex-col items-center gap-8 px-6 text-center max-w-md w-full">
-        {/* Logo */}
         {photographer.logo_url ? (
           <div className="w-36 h-36 relative">
             <Image src={proxy(photographer.logo_url)!} alt={photographer.name} fill unoptimized className="object-contain" />
@@ -54,12 +52,10 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
           <div className="text-2xl font-bold" style={{ color }}>{photographer.name}</div>
         )}
 
-        {/* Cover image */}
         {portfolio.cover_url && (
-          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl"
-            onContextMenu={e => e.preventDefault()}>
+          <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl">
             <Image src={proxy(portfolio.cover_url)!} alt={portfolio.title} width={600} height={450}
-              unoptimized draggable={false} className="w-full h-full object-cover" priority />
+              unoptimized className="w-full h-full object-cover" priority />
           </div>
         )}
 

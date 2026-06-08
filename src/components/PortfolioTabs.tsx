@@ -169,12 +169,17 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     setTimeout(() => setCopied(false), 2000)
   }
 
+  function passwordError(pw: string): string | null {
+    if (!pw) return null
+    if (pw.length < 6 || pw.length > 10) return 'הקוד חייב להיות בין 6 ל-10 תווים'
+    if (!/^[a-zA-Z0-9]+$/.test(pw)) return 'ניתן להשתמש רק באותיות אנגלית ומספרים'
+    return null
+  }
+
   async function savePassword() {
     const pw = clientPassword.trim()
-    if (pw && (pw.length < 6 || pw.length > 10)) {
-      toast('הקוד חייב להיות בין 6 ל-10 תווים', 'error')
-      return
-    }
+    const err = passwordError(pw)
+    if (err) { toast(err, 'error'); return }
     setSavingPassword(true)
     try {
       await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
@@ -719,7 +724,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
           <input
             value={clientPassword}
             onChange={e => setClientPassword(e.target.value)}
-            placeholder={clientPassword ? '' : 'לא הוגדר — יש להגדיר כדי לפעיל את הגלריה'}
+            placeholder="6-10 אותיות אנגלית/מספרים"
             type="text"
             autoComplete="off"
             className="flex-1 text-xs border border-stone-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-stone-300 bg-white/80 placeholder:text-stone-300"
@@ -728,12 +733,15 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             type="button"
             onClick={savePassword}
             disabled={savingPassword}
-            className="shrink-0 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-50"
-            style={{ background: color + '22', color }}
+            className="shrink-0 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-50 text-white"
+            style={{ background: color }}
           >
             {savingPassword ? '...' : 'שמור'}
           </button>
         </div>
+        {passwordError(clientPassword.trim()) && clientPassword.trim() && (
+          <p className="text-[11px] text-red-400 mt-1 pr-5">{passwordError(clientPassword.trim())}</p>
+        )}
         {!clientPassword && (
           <p className="text-[11px] text-stone-400 mt-1 pr-5">
             ⚠️ הגלריה אינה פעילה ולא ניתן לשלוח מייל — יש להגדיר קוד גישה
