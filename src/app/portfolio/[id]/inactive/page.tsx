@@ -1,6 +1,20 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Lock } from 'lucide-react'
 
 export default function InactivePage() {
+  const params = useParams()
+  const id = params.id as string
+  const [notified, setNotified] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/portfolio/${id}/notify-inactive`, { method: 'POST' })
+      .then(r => { if (r.ok) setNotified(true) })
+      .catch(() => {})
+  }, [id])
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4"
       style={{ background: '#0A0A0A' }}>
@@ -15,6 +29,11 @@ export default function InactivePage() {
             <br />
             יש ליצור קשר עם הצלמת לקבלת קוד גישה.
           </p>
+          {notified && (
+            <p className="text-white/40 text-xs mt-3">
+              הצלמת קיבלה הודעה ותיצור קשר בהקדם.
+            </p>
+          )}
         </div>
       </div>
     </div>

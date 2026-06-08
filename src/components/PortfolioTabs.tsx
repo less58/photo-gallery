@@ -54,6 +54,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [siteOrigin, setSiteOrigin] = useState('')
   const [copied, setCopied] = useState(false)
   const [clientPassword, setClientPassword] = useState<string>((portfolio as Record<string, unknown>).client_password as string ?? '')
+  const [savedPassword, setSavedPassword] = useState<string>((portfolio as Record<string, unknown>).client_password as string ?? '')
   const [savingPassword, setSavingPassword] = useState(false)
   const [coverUrl, setCoverUrl] = useState<string | null>(portfolio.cover_url)
   const [uploadingCover, setUploadingCover] = useState(false)
@@ -182,14 +183,40 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     if (err) { toast(err, 'error'); return }
     setSavingPassword(true)
     try {
-      await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
+      const res = await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_password: pw || null }),
       })
-      toast(pw ? 'קוד כניסה נשמר' : 'הגנת קוד הוסרה')
+      if (res.ok) {
+        setSavedPassword(pw)
+        toast(pw ? 'קוד כניסה נשמר' : 'הגנת קוד הוסרה')
+      } else {
+        toast('שגיאה בשמירה', 'error')
+      }
     } catch {
       toast('שגיאה בשמירה', 'error')
+    }
+    setSavingPassword(false)
+  }
+
+  async function clearPassword() {
+    setSavingPassword(true)
+    try {
+      const res = await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_password: null }),
+      })
+      if (res.ok) {
+        setSavedPassword('')
+        setClientPassword('')
+        toast('קוד הגישה הוסר')
+      } else {
+        toast('שגיאה בהסרה', 'error')
+      }
+    } catch {
+      toast('שגיאה', 'error')
     }
     setSavingPassword(false)
   }
@@ -238,7 +265,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   }
 
   function sendEmailToClient() {
-    if (!clientPassword) {
+    if (!savedPassword) {
       toast('לא ניתן לשלוח מייל — יש להגדיר קוד גישה ללקוחה תחילה', 'error')
       return
     }
@@ -717,9 +744,17 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         </div>
 
         {/* Password row — subtle, below the link */}
-        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-black/5">
+        <div
+          className="flex items-center gap-2 mt-2 pt-2 border-t border-black/5"
+          onBlur={(e) => {
+            const rel = e.relatedTarget as Node | null
+            if (!rel || !e.currentTarget.contains(rel)) {
+              setClientPassword(savedPassword)
+            }
+          }}
+        >
           <span className="text-xs text-stone-400 shrink-0">
-            {clientPassword ? '🔒' : '🔓'} קוד גישה:
+            {savedPassword ? '🔒' : '🔓'} קוד גישה:
           </span>
           <input
             value={clientPassword}
@@ -729,11 +764,26 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             autoComplete="off"
             className="flex-1 text-xs border border-stone-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-stone-300 bg-white/80 placeholder:text-stone-300"
           />
+          {savedPassword && (
+            <button
+              type="button"
+              onClick={clearPassword}
+              disabled={savingPassword}
+              className="shrink-0 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-50 text-stone-500 border border-stone-200 hover:bg-stone-50"
+            >
+              בטל
+            </button>
+          )}
           <button
             type="button"
             onClick={savePassword}
-            disabled={savingPassword}
-            className="shrink-0 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-50 text-white"
+            disabled={
+              savingPassword ||
+              !clientPassword.trim() ||
+              !!passwordError(clientPassword.trim()) ||
+              clientPassword.trim() === savedPassword
+            }
+            className="shrink-0 text-xs px-2.5 py-1 rounded-md font-medium transition-all disabled:opacity-40 text-white"
             style={{ background: color }}
           >
             {savingPassword ? '...' : 'שמור'}
@@ -742,7 +792,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         {passwordError(clientPassword.trim()) && clientPassword.trim() && (
           <p className="text-[11px] text-red-400 mt-1 pr-5">{passwordError(clientPassword.trim())}</p>
         )}
-        {!clientPassword && (
+        {!savedPassword && (
           <p className="text-[11px] text-stone-400 mt-1 pr-5">
             ⚠️ הגלריה אינה פעילה ולא ניתן לשלוח מייל — יש להגדיר קוד גישה
           </p>
