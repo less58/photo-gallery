@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Download, CheckCircle2, Clock, Archive } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Download, CheckCircle2, Clock, Archive, Search } from 'lucide-react'
 
-type Snapshot = {
+type ArchiveEntry = {
   id: string
+  source: 'snapshot' | 'portfolio'
   portfolio_title: string
   client_email: string
   approved_count: number
@@ -13,32 +14,50 @@ type Snapshot = {
 }
 
 export default function ArchivePage() {
-  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [entries, setEntries] = useState<ArchiveEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     fetch('/api/dashboard/archive', { cache: 'no-store' })
       .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setSnapshots(data) })
+      .then(data => { if (Array.isArray(data)) setEntries(data) })
       .finally(() => setLoading(false))
   }, [])
 
-  async function downloadReport(snapshot: Snapshot) {
-    setDownloading(snapshot.id)
+  const filtered = useMemo(() => {
+    if (!search.trim()) return entries
+    const q = search.trim().toLowerCase()
+    return entries.filter(e =>
+      e.portfolio_title.toLowerCase().includes(q) ||
+      e.client_email.toLowerCase().includes(q)
+    )
+  }, [entries, search])
+
+  async function downloadReport(entry: ArchiveEntry) {
+    setDownloading(entry.id)
     try {
-      const res = await fetch(`/api/dashboard/archive/${snapshot.id}`)
+      const url = entry.source === 'portfolio'
+        ? `/api/dashboard/archive/${entry.id}?source=portfolio`
+        : `/api/dashboard/archive/${entry.id}`
+
+      const res = await fetch(url)
       if (!res.ok) return
+
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
+      const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `${snapshot.portfolio_title}_בחירות.csv`
+      a.href = blobUrl
+      a.download = `${entry.portfolio_title}_בחירות.txt`
       a.click()
-      URL.revokeObjectURL(url)
-      setSnapshots(prev => prev.map(s =>
-        s.id === snapshot.id ? { ...s, downloaded_at: new Date().toISOString() } : s
-      ))
+      URL.revokeObjectURL(blobUrl)
+
+      if (entry.source === 'snapshot') {
+        setEntries(prev => prev.map(e =>
+          e.id === entry.id ? { ...e, downloaded_at: new Date().toISOString() } : e
+        ))
+      }
     } finally {
       setDownloading(null)
     }
@@ -50,23 +69,40 @@ export default function ArchivePage() {
         <Archive size={22} className="text-stone-400" />
         <div>
           <h1 className="text-xl font-bold text-stone-800">ארכיון בחירות</h1>
-          <p className="text-stone-400 text-sm mt-0.5">בחירות תמונות של לקוחות מתיקים שנמחקו</p>
+          <p className="text-stone-400 text-sm mt-0.5">בחירות תמונות של כלל הלקוחות</p>
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-5 max-w-sm">
+        <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="חיפוש לפי שם תיק או לקוחה..."
+          className="w-full pr-8 pl-3 py-2 text-sm rounded-lg border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-stone-300 transition"
+          dir="rtl"
+        />
       </div>
 
       {loading && (
         <div className="flex items-center justify-center py-16 text-stone-400 text-sm">טוענת...</div>
       )}
 
-      {!loading && snapshots.length === 0 && (
+      {!loading && entries.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-stone-400">
           <Archive size={36} strokeWidth={1.2} className="mb-3 opacity-30" />
-          <p className="font-medium text-stone-500">אין בחירות בארכיון עדיין</p>
-          <p className="text-sm mt-1">כשתמחקי תיק שיש בו בחירות, הן ישמרו כאן</p>
+          <p className="font-medium text-stone-500">אין עדיין לקוחות</p>
+          <p className="text-sm mt-1">כשתיצרי תיקים ולקוחות יבחרו תמונות, הן יופיעו כאן</p>
         </div>
       )}
 
-      {!loading && snapshots.length > 0 && (
+      {!loading && entries.length > 0 && filtered.length === 0 && (
+        <div className="text-center py-12 text-stone-400 text-sm">לא נמצאו תוצאות לחיפוש</div>
+      )}
+
+      {!loading && filtered.length > 0 && (
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           <table className="w-full text-sm" dir="rtl">
             <thead>
@@ -74,32 +110,47 @@ export default function ArchivePage() {
                 <th className="text-right px-5 py-3">שם תיק</th>
                 <th className="text-right px-4 py-3">לקוחה</th>
                 <th className="text-right px-4 py-3">תמונות נבחרו</th>
-                <th className="text-right px-4 py-3">תאריך מחיקה</th>
+                <th className="text-right px-4 py-3">תאריך</th>
+                <th className="text-right px-4 py-3">סטטוס</th>
                 <th className="text-right px-4 py-3">הורדה</th>
               </tr>
             </thead>
             <tbody>
-              {snapshots.map((s, i) => (
-                <tr key={s.id} className={`border-b border-stone-50 hover:bg-stone-50 transition-colors ${i === snapshots.length - 1 ? 'border-0' : ''}`}>
-                  <td className="px-5 py-3.5 font-medium text-stone-700">{s.portfolio_title}</td>
-                  <td className="px-4 py-3.5 text-stone-400 text-xs" dir="ltr">{s.client_email}</td>
-                  <td className="px-4 py-3.5 text-stone-600">{s.approved_count}</td>
+              {filtered.map((entry, i) => (
+                <tr key={entry.id}
+                  className={`border-b border-stone-50 hover:bg-stone-50 transition-colors ${i === filtered.length - 1 ? 'border-0' : ''}`}>
+                  <td className="px-5 py-3.5 font-medium text-stone-700">{entry.portfolio_title}</td>
+                  <td className="px-4 py-3.5 text-stone-400 text-xs" dir="ltr">{entry.client_email}</td>
+                  <td className="px-4 py-3.5 text-stone-600">{entry.approved_count}</td>
                   <td className="px-4 py-3.5 text-stone-400 text-xs">
-                    {new Date(s.created_at).toLocaleDateString('he-IL')}
+                    {new Date(entry.created_at).toLocaleDateString('he-IL')}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      entry.source === 'portfolio'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'bg-stone-100 text-stone-500'
+                    }`}>
+                      {entry.source === 'portfolio' ? 'פעיל' : 'נמחק'}
+                    </span>
                   </td>
                   <td className="px-4 py-3.5">
                     <button
                       type="button"
-                      onClick={() => downloadReport(s)}
-                      disabled={downloading === s.id}
+                      onClick={() => downloadReport(entry)}
+                      disabled={downloading === entry.id}
                       className="flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-40"
-                      style={{ color: s.downloaded_at ? '#16a34a' : '#78716c' }}
+                      style={{
+                        color: (entry.source === 'snapshot' && entry.downloaded_at)
+                          ? '#16a34a'
+                          : '#78716c'
+                      }}
                     >
-                      {s.downloaded_at
-                        ? <><CheckCircle2 size={13} /> הורד</>
-                        : downloading === s.id
-                          ? <><Clock size={13} /> מוריד...</>
-                          : <><Download size={13} /> הורד CSV</>
+                      {downloading === entry.id
+                        ? <><Clock size={13} /> מוריד...</>
+                        : (entry.source === 'snapshot' && entry.downloaded_at)
+                          ? <><CheckCircle2 size={13} /> הורד</>
+                          : <><Download size={13} /> הורד TXT</>
                       }
                     </button>
                   </td>

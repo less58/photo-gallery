@@ -134,7 +134,7 @@ export async function DELETE(req: NextRequest) {
     .select('photo_id, status')
     .eq('portfolio_id', id)
 
-  let csv: string | null = null
+  let txt: string | null = null
 
   if (selections && selections.length > 0) {
     const snapshotItems = selections.map(sel => {
@@ -153,9 +153,20 @@ export async function DELETE(req: NextRequest) {
     })
 
     if (includeReport) {
-      const statusLabel = (s: string) => s === 'approved' ? 'מאושרת' : s === 'maybe' ? 'ממתינה' : 'נדחתה'
-      const rows = snapshotItems.map((item, i) => `${i + 1},"${item.name}",${statusLabel(item.status)}`)
-      csv = ['מספר,שם תמונה,סטטוס', ...rows].join('\n')
+      const approved = snapshotItems.filter(i => i.status === 'approved')
+      const maybe = snapshotItems.filter(i => i.status === 'maybe')
+      const date = new Date().toLocaleDateString('he-IL')
+      const lines = [`גלריה: ${portfolio.title}`, `לקוחה: ${portfolio.client_email}`, `תאריך הורדה: ${date}`, '']
+      if (approved.length > 0) {
+        lines.push(`תמונות מאושרות (${approved.length}):`)
+        approved.forEach((item, i) => lines.push(`  ${i + 1}. ${item.name}`))
+        lines.push('')
+      }
+      if (maybe.length > 0) {
+        lines.push(`תמונות בהמתנה (${maybe.length}):`)
+        maybe.forEach((item, i) => lines.push(`  ${i + 1}. ${item.name}`))
+      }
+      txt = lines.join('\n')
     }
   }
 
@@ -172,6 +183,6 @@ export async function DELETE(req: NextRequest) {
 
   return Response.json({
     ok: true,
-    ...(csv ? { csv, filename: `${portfolio.title}_בחירות.csv` } : {}),
+    ...(txt ? { txt, filename: `${portfolio.title}_בחירות.txt` } : {}),
   })
 }

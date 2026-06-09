@@ -64,13 +64,12 @@ export default function PortfolioList({
       })
       const data = await res.json()
       if (res.ok) {
-        if (data.csv) {
-          const bom = '﻿'
-          const blob = new Blob([bom + data.csv], { type: 'text/csv;charset=utf-8;' })
+        if (data.txt) {
+          const blob = new Blob([data.txt], { type: 'text/plain;charset=utf-8;' })
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = data.filename || 'בחירות.csv'
+          a.download = data.filename || 'בחירות.txt'
           a.click()
           URL.revokeObjectURL(url)
         }
@@ -84,12 +83,7 @@ export default function PortfolioList({
   }
 
   function handleDeleteClick(id: string, title: string, selectionCount: number, quota: number) {
-    if (selectionCount > 0) {
-      setDeleteModal({ id, title, selectionCount, quota })
-    } else {
-      if (!confirm(`למחוק את התיק "${title}"? לא ניתן לשחזר.`)) return
-      void confirmDelete(id, false)
-    }
+    setDeleteModal({ id, title, selectionCount, quota })
   }
 
   async function toggleDone(id: string, current: boolean) {
@@ -272,38 +266,60 @@ export default function PortfolioList({
               </button>
             </div>
 
-            <p className="text-stone-600 text-sm mb-2">
-              ללקוחה זו נבחרו <strong>{deleteModal.selectionCount}</strong> מתוך <strong>{deleteModal.quota}</strong> תמונות.
-            </p>
-            <p className="text-stone-500 text-sm mb-5">
-              האם למחוק את התיק &ldquo;{deleteModal.title}&rdquo;?
-            </p>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => confirmDelete(deleteModal.id, true)}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90"
-                style={{ background: color }}
-              >
-                <Download size={14} />
-                הורד קובץ בחירות ומחק
-              </button>
-              <button
-                type="button"
-                onClick={() => confirmDelete(deleteModal.id, false)}
-                className="w-full py-2.5 rounded-xl text-stone-600 text-sm font-medium border border-stone-200 hover:bg-stone-50 transition-colors"
-              >
-                מחק בלי הורדה
-              </button>
-              <button
-                type="button"
-                onClick={() => setDeleteModal(null)}
-                className="w-full py-2 text-stone-400 text-sm hover:text-stone-600 transition-colors"
-              >
-                ביטול
-              </button>
-            </div>
+            {deleteModal.selectionCount > 0 ? (
+              <>
+                <p className="text-stone-600 text-sm mb-1">
+                  ללקוחה זו נבחרו <strong>{deleteModal.selectionCount}</strong> מתוך <strong>{deleteModal.quota}</strong> תמונות.
+                </p>
+                <p className="text-stone-500 text-sm mb-1">
+                  האם למחוק את התיק &ldquo;{deleteModal.title}&rdquo;?
+                </p>
+                <p className="text-red-400 text-xs mb-5">פעולה זו אינה ניתנת לשחזור.</p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => confirmDelete(deleteModal.id, true)}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90"
+                    style={{ background: color }}
+                  >
+                    <Download size={14} />
+                    הורד קובץ בחירות ומחק
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => confirmDelete(deleteModal.id, false)}
+                    className="w-full py-2.5 rounded-xl text-stone-600 text-sm font-medium border border-stone-200 hover:bg-stone-50 transition-colors"
+                  >
+                    מחק בלי הורדה
+                  </button>
+                  <button type="button" onClick={() => setDeleteModal(null)}
+                    className="w-full py-2 text-stone-400 text-sm hover:text-stone-600 transition-colors">
+                    ביטול
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-stone-600 text-sm mb-1">
+                  האם למחוק את התיק &ldquo;{deleteModal.title}&rdquo;?
+                </p>
+                <p className="text-red-400 text-xs mb-5">פעולה זו אינה ניתנת לשחזור.</p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => confirmDelete(deleteModal.id, false)}
+                    className="w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90"
+                    style={{ background: color }}
+                  >
+                    מחק
+                  </button>
+                  <button type="button" onClick={() => setDeleteModal(null)}
+                    className="w-full py-2 text-stone-400 text-sm hover:text-stone-600 transition-colors">
+                    ביטול
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
