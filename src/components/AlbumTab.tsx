@@ -6,13 +6,10 @@ import type { Album } from '@/lib/types'
 import AlbumViewer from './AlbumViewer'
 import AlbumImageEditor from './AlbumImageEditor'
 
-const PROXY_PFX = '/api/image-proxy?url='
-
 function applyTransform(url: string, transform: string): string {
-  if (url.startsWith(PROXY_PFX)) {
-    const orig = decodeURIComponent(url.slice(PROXY_PFX.length))
-    const t = orig.includes('/upload/') ? orig.replace('/upload/', `/upload/${transform}/`) : orig
-    return `${PROXY_PFX}${encodeURIComponent(t)}`
+  if (url.startsWith('/api/image-proxy?')) {
+    const base = url.replace(/&tr=[^&]*/, '')
+    return `${base}&tr=${encodeURIComponent(transform)}`
   }
   return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
 }

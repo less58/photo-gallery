@@ -14,15 +14,10 @@ const AlbumFlipBook = dynamic(() => import('./AlbumFlipBook'), {
   ),
 })
 
-const PROXY_PREFIX = '/api/image-proxy?url='
-
 function applyCloudinaryTransform(url: string, transform: string): string {
-  if (url.startsWith(PROXY_PREFIX)) {
-    const original = decodeURIComponent(url.slice(PROXY_PREFIX.length))
-    const transformed = original.includes('/upload/')
-      ? original.replace('/upload/', `/upload/${transform}/`)
-      : original
-    return `${PROXY_PREFIX}${encodeURIComponent(transformed)}`
+  if (url.startsWith('/api/image-proxy?')) {
+    const base = url.replace(/&tr=[^&]*/, '')
+    return `${base}&tr=${encodeURIComponent(transform)}`
   }
   return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
 }
@@ -279,8 +274,9 @@ function PdfViewer({ album, onClose, allowDownload = false }: Props) {
               src={currentUrl}
               alt={`עמוד ${idx + 1}`}
               draggable={false}
+              onContextMenu={e => e.preventDefault()}
               onLoad={() => setLoaded(true)}
-              className="max-w-full max-h-full object-contain rounded shadow-2xl"
+              className="max-w-full max-h-full object-contain rounded shadow-2xl select-none"
               style={{ maxHeight: 'calc(100vh - 130px)' }}
             />
             {!loaded && animState === 'idle' && (

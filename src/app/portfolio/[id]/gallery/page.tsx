@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import GalleryClient from '@/components/GalleryClient'
 import type { Photo, Collage, Album } from '@/lib/types'
+import { encryptUrl } from '@/lib/imageToken'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,7 +57,7 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
 
   function proxy(url: string | null | undefined): string | null {
     if (!url) return null
-    return `/api/image-proxy?url=${encodeURIComponent(url)}`
+    return `/api/image-proxy?t=${encryptUrl(url)}`
   }
 
   function proxyPhoto(photo: Photo): Photo {

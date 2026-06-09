@@ -1,13 +1,24 @@
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
+import { decryptUrl, applyTransform } from '@/lib/imageToken'
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies()
   const sessionRaw = cookieStore.get('portfolio_session')?.value
   if (!sessionRaw) return new Response('unauthorized', { status: 401 })
 
-  const url = req.nextUrl.searchParams.get('url')
-  if (!url) return new Response('missing url', { status: 400 })
+  const token = req.nextUrl.searchParams.get('t')
+  if (!token) return new Response('missing token', { status: 400 })
+
+  let url: string
+  try {
+    url = decryptUrl(token)
+  } catch {
+    return new Response('invalid token', { status: 400 })
+  }
+
+  const tr = req.nextUrl.searchParams.get('tr')
+  if (tr) url = applyTransform(url, tr)
 
   try {
     const upstream = await fetch(url)

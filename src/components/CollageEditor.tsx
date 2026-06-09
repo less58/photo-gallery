@@ -101,8 +101,7 @@ async function renderCollageCanvas(collage: Collage): Promise<HTMLCanvasElement>
     const h = cell.h * RENDER_H
 
     if (cell.photo_url) {
-      const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(cell.photo_url)}`
-      const img = await loadImg(proxyUrl)
+      const img = await loadImg(cell.photo_url)
       const cellAspect = w / h
       const imgAspect = img.naturalWidth / img.naturalHeight
       let drawW: number, drawH: number, drawX: number, drawY: number

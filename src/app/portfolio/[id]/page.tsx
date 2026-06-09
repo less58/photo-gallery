@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { encryptUrl } from '@/lib/imageToken'
 
 export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[id]'>) {
   const { id } = await props.params
@@ -32,7 +33,7 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
 
   function proxy(url: string | null): string | null {
     if (!url) return null
-    return `/api/image-proxy?url=${encodeURIComponent(url)}`
+    return `/api/image-proxy?t=${encryptUrl(url)}`
   }
 
   return (

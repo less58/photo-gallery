@@ -291,7 +291,7 @@ export default function GalleryClient({
       {/* ── HERO / Cover ── */}
       {coverUrl ? (
         <div className="relative h-screen flex items-center justify-center overflow-hidden">
-          <Image src={coverUrl} alt={portfolioTitle} fill unoptimized className="object-cover opacity-60" />
+          <Image src={coverUrl} alt={portfolioTitle} fill unoptimized draggable={false} onContextMenu={e => e.preventDefault()} className="object-cover opacity-60 select-none" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/80" />
 
           <div className="relative z-10 text-center px-6">
@@ -449,7 +449,9 @@ export default function GalleryClient({
                       alt={photo.name || ''}
                       width={600} height={400}
                       unoptimized
-                      className="w-full h-auto object-cover"
+                      draggable={false}
+                      onContextMenu={e => e.preventDefault()}
+                      className="w-full h-auto object-cover select-none"
                     />
                     <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center"
                       style={{ background: STATUS_COLOR.approved }}>
@@ -521,7 +523,9 @@ export default function GalleryClient({
                         width={600}
                         height={400}
                         unoptimized
-                        className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                        draggable={false}
+                        onContextMenu={e => e.preventDefault()}
+                        className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
                       />
 
                       {/* Status badge */}
@@ -636,12 +640,10 @@ export default function GalleryClient({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {albums.map(album => {
-                const PROXY_PFX = '/api/image-proxy?url='
                 function albumTransform(url: string, transform: string): string {
-                  if (url.startsWith(PROXY_PFX)) {
-                    const orig = decodeURIComponent(url.slice(PROXY_PFX.length))
-                    const t = orig.includes('/upload/') ? orig.replace('/upload/', `/upload/${transform}/`) : orig
-                    return `${PROXY_PFX}${encodeURIComponent(t)}`
+                  if (url.startsWith('/api/image-proxy?')) {
+                    const base = url.replace(/&tr=[^&]*/, '')
+                    return `${base}&tr=${encodeURIComponent(transform)}`
                   }
                   return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
                 }

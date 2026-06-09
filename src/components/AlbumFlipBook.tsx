@@ -6,13 +6,9 @@ import { ChevronLeft, ChevronRight, X, Download, Loader2, MessageSquare, Send } 
 import type { Album } from '@/lib/types'
 
 function cloudinaryTransform(url: string, transform: string): string {
-  const PROXY_PREFIX = '/api/image-proxy?url='
-  if (url.startsWith(PROXY_PREFIX)) {
-    const original = decodeURIComponent(url.slice(PROXY_PREFIX.length))
-    const transformed = original.includes('/upload/')
-      ? original.replace('/upload/', `/upload/${transform}/`)
-      : original
-    return `${PROXY_PREFIX}${encodeURIComponent(transformed)}`
+  if (url.startsWith('/api/image-proxy?')) {
+    const base = url.replace(/&tr=[^&]*/, '')
+    return `${base}&tr=${encodeURIComponent(transform)}`
   }
   return url.includes('/upload/') ? url.replace('/upload/', `/upload/${transform}/`) : url
 }
