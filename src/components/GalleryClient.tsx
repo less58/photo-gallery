@@ -28,7 +28,10 @@ type Props = {
   collages?: Collage[]
   albums?: Album[]
   allowAlbumDownload?: boolean
+  portfolioCreatedAt?: string
 }
+
+const DELETION_DAYS = 45
 
 const STATUS_COLOR: Record<SelectionStatus, string> = {
   approved: '#22C55E',
@@ -46,7 +49,12 @@ export default function GalleryClient({
   collages = [],
   albums = [],
   allowAlbumDownload = false,
+  portfolioCreatedAt,
 }: Props) {
+  const daysRemaining = portfolioCreatedAt
+    ? DELETION_DAYS - Math.floor((Date.now() - new Date(portfolioCreatedAt).getTime()) / 86_400_000)
+    : null
+  const isExpired = daysRemaining !== null && daysRemaining <= 0 && allPhotos.length === 0
   const toast = useToast()
   const [activeSession, setActiveSession] = useState<string | 'all'>('all')
   const [selections, setSelections] = useState<Record<string, SelectionStatus>>(() => {
@@ -57,10 +65,12 @@ export default function GalleryClient({
   const [compareQueue, setCompareQueue] = useState<string[]>([])
   const [comparePhotos, setComparePhotos] = useState<[Photo, Photo] | null>(null)
   const [lightbox, setLightbox] = useState<Photo | null>(null)
-  // Default to albums tab if photographer marked portfolio as done
-  const [tab, setTab] = useState<GalleryTab>(() =>
-    isDone && albums.length > 0 ? 'albums' : 'gallery'
-  )
+  // Default to albums tab if: portfolio is done, or gallery has expired and has an album
+  const [tab, setTab] = useState<GalleryTab>(() => {
+    if (isDone && albums.length > 0) return 'albums'
+    if (daysRemaining !== null && daysRemaining <= 0 && allPhotos.length === 0 && albums.length > 0) return 'albums'
+    return 'gallery'
+  })
   const [sendingReport, setSendingReport] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
@@ -284,6 +294,26 @@ export default function GalleryClient({
 
   const isApproveBlocked = false // selection now allows over-quota with warning
 
+  // Expired with no album — show dedicated screen
+  if (isExpired && albums.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center px-6"
+        style={{ background: '#0A0A0A', color: '#fff' }}>
+        {logoUrl && (
+          <div className="w-20 h-20 mx-auto mb-6 relative">
+            <Image src={logoUrl} alt={photographerName} fill unoptimized className="object-contain" />
+          </div>
+        )}
+        <h1 className="text-2xl font-bold mb-3">{portfolioTitle}</h1>
+        <div className="w-12 h-px mx-auto mb-5 opacity-30" style={{ background: color }} />
+        <p className="text-white/50 text-sm max-w-xs">
+          תקופת הבחירה הסתיימה והתמונות הוסרו מהמערכת.<br />
+          לשאלות פנ/י ישירות ל{photographerName}.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen" style={{ background: '#0A0A0A', color: '#fff' }}
       onContextMenu={e => e.preventDefault()}>
@@ -330,6 +360,17 @@ export default function GalleryClient({
 
       {/* ── Sticky header ── */}
       <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-white/10">
+        {daysRemaining !== null && daysRemaining <= 14 && daysRemaining > 0 && (
+          <div className="text-center text-xs py-1.5 font-medium"
+            style={{ background: daysRemaining <= 3 ? '#ef444420' : '#f59e0b18', color: daysRemaining <= 3 ? '#f87171' : '#fbbf24' }}>
+            {daysRemaining === 1 ? 'נותר יום אחד בלבד לבחירת התמונות!' : `נותרו ${daysRemaining} ימים לבחירת התמונות`}
+          </div>
+        )}
+        {daysRemaining !== null && daysRemaining > 14 && (
+          <div className="text-center text-xs py-1 text-white/30">
+            נותרו {daysRemaining} ימים לבחירת התמונות
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 py-3 space-y-2">
 
           {/* Progress + send button row */}

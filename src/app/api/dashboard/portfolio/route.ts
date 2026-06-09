@@ -3,6 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { buildEmailHtml, buildEmailText } from '@/lib/emailTemplate'
+import { v2 as cloudinary } from 'cloudinary'
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
 
 async function sendEmail(
   ph: Record<string, unknown>,
@@ -100,19 +107,71 @@ export async function DELETE(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'לא מחוברת' }, { status: 401 })
 
-  const { id } = await req.json()
+  const body = await req.json()
+  const { id, includeReport = false } = body as { id: string; includeReport?: boolean }
   const admin = createAdminClient()
 
-  const { count } = await admin
-    .from('selections')
-    .select('*', { count: 'exact', head: true })
+  // Verify portfolio belongs to this photographer
+  const { data: portfolio } = await admin
+    .from('portfolios')
+    .select('id, title, client_email, photographer:photographers(id)')
+    .eq('id', id)
+    .maybeSingle()
+  if (!portfolio) return Response.json({ error: 'תיק לא נמצא' }, { status: 404 })
+  const ph = portfolio.photographer as unknown as { id: string }
+
+  // Get sessions + photos for Cloudinary cleanup
+  const { data: sessions } = await admin
+    .from('sessions')
+    .select('id, photos(id, url, name)')
     .eq('portfolio_id', id)
 
-  if ((count ?? 0) > 0) {
-    return Response.json({ error: 'לא ניתן למחוק תיק שבו הלקוחה כבר בחרה תמונות' }, { status: 400 })
+  const allPhotos = (sessions || []).flatMap(s => (s.photos as { id: string; url: string; name?: string }[]) || [])
+
+  // Get selections for snapshot
+  const { data: selections } = await admin
+    .from('selections')
+    .select('photo_id, status')
+    .eq('portfolio_id', id)
+
+  let csv: string | null = null
+
+  if (selections && selections.length > 0) {
+    const snapshotItems = selections.map(sel => {
+      const photo = allPhotos.find(p => p.id === sel.photo_id)
+      return { id: sel.photo_id, name: photo?.name || sel.photo_id, status: sel.status }
+    })
+    const approvedCount = selections.filter(s => s.status === 'approved').length
+
+    await admin.from('selection_snapshots').insert({
+      photographer_id: ph.id,
+      portfolio_id: id,
+      portfolio_title: portfolio.title,
+      client_email: portfolio.client_email,
+      approved_count: approvedCount,
+      selections_json: snapshotItems,
+    })
+
+    if (includeReport) {
+      const statusLabel = (s: string) => s === 'approved' ? 'מאושרת' : s === 'maybe' ? 'ממתינה' : 'נדחתה'
+      const rows = snapshotItems.map((item, i) => `${i + 1},"${item.name}",${statusLabel(item.status)}`)
+      csv = ['מספר,שם תמונה,סטטוס', ...rows].join('\n')
+    }
+  }
+
+  // Delete from Cloudinary
+  const publicIds = allPhotos
+    .map(p => { const m = p.url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/); return m ? m[1] : null })
+    .filter(Boolean) as string[]
+  for (let i = 0; i < publicIds.length; i += 100) {
+    try { await cloudinary.api.delete_resources(publicIds.slice(i, i + 100)) } catch { /* ignore */ }
   }
 
   const { error } = await admin.from('portfolios').delete().eq('id', id)
   if (error) return Response.json({ error: error.message }, { status: 500 })
-  return Response.json({ ok: true })
+
+  return Response.json({
+    ok: true,
+    ...(csv ? { csv, filename: `${portfolio.title}_בחירות.csv` } : {}),
+  })
 }

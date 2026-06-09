@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle } from 'lucide-react'
+import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle, Download, X } from 'lucide-react'
 import { useToast } from './Toast'
 import { useUpload } from '@/context/UploadContext'
 
@@ -51,22 +51,29 @@ export default function PortfolioList({
   }, [])
   const [deleting, setDeleting] = useState<string | null>(null)
   const [togglingDone, setTogglingDone] = useState<string | null>(null)
+  const [deleteModal, setDeleteModal] = useState<{ id: string; title: string; selectionCount: number; quota: number } | null>(null)
 
-  async function deletePortfolio(id: string, title: string, selectionCount: number) {
-    if (selectionCount > 0) {
-      toast('לא ניתן למחוק תיק שבו הלקוחה כבר בחרה תמונות', 'error')
-      return
-    }
-    if (!confirm(`למחוק את התיק "${title}"? לא ניתן לשחזר.`)) return
+  async function confirmDelete(id: string, includeReport: boolean) {
+    setDeleteModal(null)
     setDeleting(id)
     try {
       const res = await fetch('/api/dashboard/portfolio', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, includeReport }),
       })
       const data = await res.json()
       if (res.ok) {
+        if (data.csv) {
+          const bom = '﻿'
+          const blob = new Blob([bom + data.csv], { type: 'text/csv;charset=utf-8;' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = data.filename || 'בחירות.csv'
+          a.click()
+          URL.revokeObjectURL(url)
+        }
         setPortfolios(prev => prev.filter(p => p.id !== id))
         toast('התיק נמחק')
       } else {
@@ -74,6 +81,15 @@ export default function PortfolioList({
       }
     } catch { toast('שגיאה', 'error') }
     setDeleting(null)
+  }
+
+  function handleDeleteClick(id: string, title: string, selectionCount: number, quota: number) {
+    if (selectionCount > 0) {
+      setDeleteModal({ id, title, selectionCount, quota })
+    } else {
+      if (!confirm(`למחוק את התיק "${title}"? לא ניתן לשחזר.`)) return
+      void confirmDelete(id, false)
+    }
   }
 
   async function toggleDone(id: string, current: boolean) {
@@ -221,10 +237,10 @@ export default function PortfolioList({
                 </button>
                 <button
                   type="button"
-                  onClick={() => deletePortfolio(portfolio.id, portfolio.title, portfolio.selectionCount)}
-                  disabled={deleting === portfolio.id || portfolio.selectionCount > 0}
-                  title={portfolio.selectionCount > 0 ? 'לא ניתן למחוק — הלקוחה כבר בחרה תמונות' : 'מחיקת תיק'}
-                  className="flex items-center gap-1.5 text-xs text-stone-300 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed py-1"
+                  onClick={() => handleDeleteClick(portfolio.id, portfolio.title, portfolio.selectionCount, portfolio.quota)}
+                  disabled={deleting === portfolio.id}
+                  title="מחיקת תיק"
+                  className="flex items-center gap-1.5 text-xs text-stone-300 hover:text-red-400 transition-colors disabled:opacity-30 py-1"
                 >
                   <Trash2 size={12} />
                   {deleting === portfolio.id ? 'מוחק...' : 'מחיקה'}
@@ -242,6 +258,53 @@ export default function PortfolioList({
             <Plus size={20} className="text-stone-300 mb-1.5" />
             <span className="text-sm text-stone-400">תיק חדש</span>
           </Link>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6" dir="rtl">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="font-bold text-stone-800 text-base">מחיקת תיק</h3>
+              <button type="button" onClick={() => setDeleteModal(null)} className="text-stone-400 hover:text-stone-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-stone-600 text-sm mb-2">
+              ללקוחה זו נבחרו <strong>{deleteModal.selectionCount}</strong> מתוך <strong>{deleteModal.quota}</strong> תמונות.
+            </p>
+            <p className="text-stone-500 text-sm mb-5">
+              האם למחוק את התיק &ldquo;{deleteModal.title}&rdquo;?
+            </p>
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => confirmDelete(deleteModal.id, true)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-opacity hover:opacity-90"
+                style={{ background: color }}
+              >
+                <Download size={14} />
+                הורד קובץ בחירות ומחק
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmDelete(deleteModal.id, false)}
+                className="w-full py-2.5 rounded-xl text-stone-600 text-sm font-medium border border-stone-200 hover:bg-stone-50 transition-colors"
+              >
+                מחק בלי הורדה
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteModal(null)}
+                className="w-full py-2 text-stone-400 text-sm hover:text-stone-600 transition-colors"
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

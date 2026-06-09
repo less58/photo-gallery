@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import MessagesNavIcon from '@/components/MessagesNavIcon'
-import { Settings, Home, Plus, Snowflake } from 'lucide-react'
+import { Settings, Home, Plus, Snowflake, Archive } from 'lucide-react'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -61,6 +61,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
               </Link>
             )}
             <MessagesNavIcon />
+            <Link href="/dashboard/archive"
+              className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+              title="ארכיון בחירות">
+              <Archive size={17} />
+            </Link>
             <Link href="/dashboard/settings"
               className="p-2 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
               title="הגדרות">

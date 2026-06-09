@@ -109,6 +109,7 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       collages={proxiedCollages}
       albums={proxiedAlbums}
       allowAlbumDownload={(ph.allow_album_download as boolean) === true}
+      portfolioCreatedAt={String(portfolio.created_at ?? '')}
     />
   )
 }
