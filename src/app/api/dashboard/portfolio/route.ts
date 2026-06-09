@@ -136,38 +136,36 @@ export async function DELETE(req: NextRequest) {
 
   let txt: string | null = null
 
-  if (selections && selections.length > 0) {
-    const snapshotItems = selections.map(sel => {
-      const photo = allPhotos.find(p => p.id === sel.photo_id)
-      return { id: sel.photo_id, name: photo?.name || sel.photo_id, status: sel.status }
-    })
-    const approvedCount = selections.filter(s => s.status === 'approved').length
+  const snapshotItems = (selections || []).map(sel => {
+    const photo = allPhotos.find(p => p.id === sel.photo_id)
+    return { id: sel.photo_id, name: photo?.name || sel.photo_id, status: sel.status }
+  })
+  const approvedCount = snapshotItems.filter(s => s.status === 'approved').length
 
-    await admin.from('selection_snapshots').insert({
-      photographer_id: ph.id,
-      portfolio_id: id,
-      portfolio_title: portfolio.title,
-      client_email: portfolio.client_email,
-      approved_count: approvedCount,
-      selections_json: snapshotItems,
-    })
+  await admin.from('selection_snapshots').insert({
+    photographer_id: ph.id,
+    portfolio_id: id,
+    portfolio_title: portfolio.title,
+    client_email: portfolio.client_email,
+    approved_count: approvedCount,
+    selections_json: snapshotItems,
+  })
 
-    if (includeReport) {
-      const approved = snapshotItems.filter(i => i.status === 'approved')
-      const maybe = snapshotItems.filter(i => i.status === 'maybe')
-      const date = new Date().toLocaleDateString('he-IL')
-      const lines = [`גלריה: ${portfolio.title}`, `לקוחה: ${portfolio.client_email}`, `תאריך הורדה: ${date}`, '']
-      if (approved.length > 0) {
-        lines.push(`תמונות מאושרות (${approved.length}):`)
-        approved.forEach((item, i) => lines.push(`  ${i + 1}. ${item.name}`))
-        lines.push('')
-      }
-      if (maybe.length > 0) {
-        lines.push(`תמונות בהמתנה (${maybe.length}):`)
-        maybe.forEach((item, i) => lines.push(`  ${i + 1}. ${item.name}`))
-      }
-      txt = lines.join('\n')
+  if (includeReport && snapshotItems.length > 0) {
+    const approved = snapshotItems.filter(i => i.status === 'approved')
+    const maybe = snapshotItems.filter(i => i.status === 'maybe')
+    const date = new Date().toLocaleDateString('he-IL')
+    const lines = [`גלריה: ${portfolio.title}`, `לקוחה: ${portfolio.client_email}`, `תאריך הורדה: ${date}`, '']
+    if (approved.length > 0) {
+      lines.push(`תמונות מאושרות (${approved.length}):`)
+      approved.forEach((item, i) => lines.push(`  ${i + 1}. ${item.name}`))
+      lines.push('')
     }
+    if (maybe.length > 0) {
+      lines.push(`תמונות בהמתנה (${maybe.length}):`)
+      maybe.forEach((item, i) => lines.push(`  ${i + 1}. ${item.name}`))
+    }
+    txt = lines.join('\n')
   }
 
   // Delete from Cloudinary
@@ -183,6 +181,6 @@ export async function DELETE(req: NextRequest) {
 
   return Response.json({
     ok: true,
-    ...(txt ? { txt, filename: `${portfolio.title}_בחירות.txt` } : {}),
+    ...(txt ? { txt, filename: `selections_${portfolio.title}.txt` } : {}),
   })
 }

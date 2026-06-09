@@ -78,7 +78,7 @@ export default function PortfolioList({
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = data.filename || 'בחירות.txt'
+          a.download = data.filename || 'selections.txt'
           a.click()
           URL.revokeObjectURL(url)
         }

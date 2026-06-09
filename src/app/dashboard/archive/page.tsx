@@ -53,7 +53,7 @@ export default function ArchivePage() {
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
-      a.download = `${entry.portfolio_title}_בחירות.txt`
+      a.download = `selections_${entry.portfolio_title}.txt`
       a.click()
       URL.revokeObjectURL(blobUrl)
 
