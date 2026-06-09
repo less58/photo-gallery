@@ -14,3 +14,11 @@ CREATE TABLE IF NOT EXISTS selection_snapshots (
 );
 
 CREATE INDEX IF NOT EXISTS selection_snapshots_photographer_id_idx ON selection_snapshots(photographer_id);
+
+-- Reset old email templates so the new default template appears in settings
+-- (only resets accounts that still have the old default text, not custom text)
+UPDATE photographers
+SET email_subject = NULL, email_body = NULL
+WHERE email_body LIKE '%התמונות שלך מוכנות לבחירה!%'
+  AND email_body LIKE '%בברכה%'
+  AND email_body NOT LIKE '%הגלריה%';
