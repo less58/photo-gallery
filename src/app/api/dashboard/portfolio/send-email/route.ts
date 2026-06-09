@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 
   const { data: portfolio } = await admin
     .from('portfolios')
-    .select('id, title, client_email, magic_token, photographer:photographers(*)')
+    .select('id, title, client_email, magic_token, client_password, quota, photographer:photographers(*)')
     .eq('id', portfolioId)
     .single()
 
@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
       bodyTemplate: customBody || defaultBody,
       logoUrl: (ph.logo_url as string) || null,
       brandColor: (ph.brand_color as string) || '#C97B73',
+      clientPassword: (portfolio.client_password as string) || null,
+      quota: (portfolio.quota as number) || null,
     }
 
     const html = buildEmailHtml(emailData)

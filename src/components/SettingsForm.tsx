@@ -652,6 +652,9 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
                     { tag: '{photographer_name}', desc: 'שם הצלמת' },
                     { tag: '{portfolio_name}', desc: 'שם התיק / הלקוחה' },
                     { tag: '{client_email}', desc: 'מייל הלקוחה' },
+                    { tag: '{link}', desc: 'קישור כניסה לגלריה' },
+                    { tag: '{password}', desc: 'קוד גישה לגלריה' },
+                    { tag: '{quota}', desc: 'כמות תמונות לבחירה' },
                   ].map(({ tag, desc }) => (
                     <span key={tag} className="inline-flex items-center gap-1 text-[10px] bg-white border border-stone-200 rounded px-1.5 py-0.5 text-stone-600">
                       <code className="font-mono text-rose-500">{tag}</code>
