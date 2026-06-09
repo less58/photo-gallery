@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle, Download, X } from 'lucide-react'
+import { Trash2, FolderOpen, ImageIcon, Plus, CheckCircle2, Circle, Download, X, Search } from 'lucide-react'
 import { useToast } from './Toast'
 import { useUpload } from '@/context/UploadContext'
 
@@ -52,6 +52,15 @@ export default function PortfolioList({
   const [deleting, setDeleting] = useState<string | null>(null)
   const [togglingDone, setTogglingDone] = useState<string | null>(null)
   const [deleteModal, setDeleteModal] = useState<{ id: string; title: string; selectionCount: number; quota: number } | null>(null)
+  const [search, setSearch] = useState('')
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return portfolios
+    const q = search.trim().toLowerCase()
+    return portfolios.filter(p =>
+      p.title.toLowerCase().includes(q) || p.client_email.toLowerCase().includes(q)
+    )
+  }, [portfolios, search])
 
   async function confirmDelete(id: string, includeReport: boolean) {
     setDeleteModal(null)
@@ -106,13 +115,28 @@ export default function PortfolioList({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-stone-800">
             שלום{photographerName ? `, ${photographerName}` : ''} 👋
           </h1>
-          <p className="text-stone-400 text-sm mt-0.5">{portfolios.length} תיקים פעילים</p>
+          <p className="text-stone-400 text-sm mt-0.5">
+            {search.trim() ? `${filtered.length} מתוך ${portfolios.length} תיקים` : `${portfolios.length} תיקים פעילים`}
+          </p>
         </div>
+        {portfolios.length > 0 && (
+          <div className="relative">
+            <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="חיפוש לפי שם תיק או לקוחה..."
+              className="pr-8 pl-3 py-2 text-sm rounded-lg border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-stone-300 transition w-56"
+              dir="rtl"
+            />
+          </div>
+        )}
       </div>
 
       {portfolios.length === 0 ? (
@@ -126,9 +150,15 @@ export default function PortfolioList({
             <Plus size={15} /> צרי תיק ראשון
           </Link>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-stone-400">
+          <Search size={32} strokeWidth={1.2} className="mb-3 opacity-30" />
+          <p className="font-medium text-stone-500">לא נמצאו תיקים</p>
+          <p className="text-sm mt-1">נסי לחפש בשם אחר</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {portfolios.map((portfolio, i) => (
+          {filtered.map((portfolio, i) => (
             <div
               key={portfolio.id}
               className={`group bg-white rounded-xl border hover:shadow-md transition-all duration-200 anim-fadeUp overflow-hidden ${portfolio.is_done ? 'border-green-200 opacity-75' : 'border-stone-200'}`}

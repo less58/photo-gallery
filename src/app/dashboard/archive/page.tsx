@@ -18,6 +18,7 @@ export default function ArchivePage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState<'all' | 'active' | 'deleted'>('all')
 
   useEffect(() => {
     fetch('/api/dashboard/archive', { cache: 'no-store' })
@@ -27,13 +28,16 @@ export default function ArchivePage() {
   }, [])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return entries
+    let result = entries
+    if (filter === 'active') result = result.filter(e => e.source === 'portfolio')
+    else if (filter === 'deleted') result = result.filter(e => e.source === 'snapshot')
+    if (!search.trim()) return result
     const q = search.trim().toLowerCase()
-    return entries.filter(e =>
+    return result.filter(e =>
       e.portfolio_title.toLowerCase().includes(q) ||
       e.client_email.toLowerCase().includes(q)
     )
-  }, [entries, search])
+  }, [entries, search, filter])
 
   async function downloadReport(entry: ArchiveEntry) {
     setDownloading(entry.id)
@@ -73,17 +77,35 @@ export default function ArchivePage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-5 max-w-sm">
-        <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="חיפוש לפי שם תיק או לקוחה..."
-          className="w-full pr-8 pl-3 py-2 text-sm rounded-lg border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-stone-300 transition"
-          dir="rtl"
-        />
+      {/* Search + Filter */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="relative">
+          <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="חיפוש לפי שם תיק או לקוחה..."
+            className="pr-8 pl-3 py-2 text-sm rounded-lg border border-stone-200 bg-white focus:outline-none focus:ring-2 focus:ring-stone-300 transition w-56"
+            dir="rtl"
+          />
+        </div>
+        <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1">
+          {([['all', 'הכל'], ['active', 'פעילים'], ['deleted', 'נמחקו']] as const).map(([val, label]) => (
+            <button
+              key={val}
+              type="button"
+              onClick={() => setFilter(val)}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                filter === val
+                  ? 'bg-white text-stone-700 shadow-sm'
+                  : 'text-stone-400 hover:text-stone-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading && (

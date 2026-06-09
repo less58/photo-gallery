@@ -643,13 +643,31 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
             {/* Email template */}
             <div className="pt-3 border-t border-stone-100 space-y-3">
               <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">נוסח המייל</p>
-              <Field label="כותרת" hint="{portfolio_name}">
+
+              {/* Placeholder reference */}
+              <div className="bg-stone-50 rounded-lg px-3 py-2.5 space-y-1.5" dir="rtl">
+                <p className="text-[11px] font-semibold text-stone-500">משתנים דינמיים — ניתן לשלב בכותרת ובגוף:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { tag: '{photographer_name}', desc: 'שם הצלמת' },
+                    { tag: '{portfolio_name}', desc: 'שם התיק / הלקוחה' },
+                    { tag: '{client_email}', desc: 'מייל הלקוחה' },
+                  ].map(({ tag, desc }) => (
+                    <span key={tag} className="inline-flex items-center gap-1 text-[10px] bg-white border border-stone-200 rounded px-1.5 py-0.5 text-stone-600">
+                      <code className="font-mono text-rose-500">{tag}</code>
+                      <span className="text-stone-400">— {desc}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <Field label="כותרת">
                 <input value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
-                  className={inp} placeholder="התמונות שלך מוכנות לבחירה 📷" />
+                  className={inp} placeholder="הגלריה שלך מוכנה! הגיע הזמן לבחור את התמונות המנצחות" />
               </Field>
-              <Field label="גוף ההודעה" hint="{photographer_name} · {client_email}">
+              <Field label="גוף ההודעה">
                 <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)}
-                  className={inp + ' resize-none text-xs leading-6'} rows={4} />
+                  className={inp + ' resize-none text-xs leading-6'} rows={6} />
                 <p className="text-[11px] text-stone-400 mt-1">הסיסמה והקישור נוספים אוטומטית בסוף</p>
               </Field>
             </div>
