@@ -60,6 +60,12 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
     }
   }, [notes.length, loading, fetchUrl])
 
+  // Focus textarea on open
+  useEffect(() => {
+    const t = setTimeout(() => textareaRef.current?.focus(), 60)
+    return () => clearTimeout(t)
+  }, [])
+
   // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
