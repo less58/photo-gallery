@@ -98,7 +98,7 @@ export function buildEmailHtml(data: EmailData): string {
             </div>
 
             <p style="color:#A8A29E;font-size:12px;text-align:center;margin-top:20px;">
-              הקישור תקף לחודש. אין צורך בסיסמה.
+              ${data.clientPassword ? `הקישור תקף ל-45 יום. הסיסמה: ${data.clientPassword}` : 'הקישור תקף ל-45 יום.'}
             </p>
           </td>
         </tr>
