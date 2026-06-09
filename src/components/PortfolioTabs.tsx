@@ -255,8 +255,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   function openEmailModal(type: EmailModalType) {
     setEmailModalType(type)
     if (type === 'selection') {
-      setEmailModalSubject(photographer.email_subject || 'התמונות שלך מוכנות לבחירה 📷')
-      setEmailModalBody(photographer.email_body || 'שלום,\n\nהתמונות שלך מוכנות לבחירה!\n\nבברכה,\n{photographer_name}')
+      setEmailModalSubject(photographer.email_subject || 'הגלריה שלך מוכנה! הגיע הזמן לבחור את התמונות המנצחות')
+      setEmailModalBody(photographer.email_body || 'היי,\n\nאיזה כיף להיזכר ברגעים המשותפים שלנו! הגלריה עם כל התמונות מהצילומים שלנו מוכנה עבורך בקישור המצורף: [לינק לאתר].\nכדי להיכנס, השתמשי בקוד האישי שלך: [הקוד].\n\nאיך הכי נוח לבחור?\nיצרתי עבורך מערכת בחירה חכמה שתעזור לך להחליט בקלות:\n\nהשוואה: אם את מתלבטת בין שתי תמונות דומות, השתמשי באופציית ה"השוואה" כדי לראות אותן זו לצד זו ולבחור את הטובה ביותר.\n\nסימון "V": לתמונות שאת בטוחה שאת רוצה באלבום.\n\nסימון "?" : לתמונות שאת מתלבטת לגביהן. נוכל לעבור עליהן יחד בהמשך.\n\nסימון "X": לתמונות שפחות אהבת, כדי שנוכל להסיר אותן מהסינון הסופי.\n\nכמה דגשים קטנים:\n\nכמות: זכרי לבחור [כמות] תמונות, בהתאם לחבילה שבחרנו.\n\nשאלות: אם יש לך תמונה שאת מתלבטת לגביה, או שתרצי שאעזור לך להחליט – אני כאן לכל שאלה (שימי לב שיש צאט בתוך המערכת)\n\nובסיום – אל תשכחי לשלוח לי את הרשימה הסופית דרך האתר אך בכל זאת אני תמיד רואה את הבחירות שלך גם ללא השליחה\n\nאם משהו לא ברור או שאת זקוקה לעזרה טכנית בהתמצאות בגלריה, אני זמינה כאן לכל שאלה.\n\nמחכה לראות את הבחירות המדויקות שלך!\n\nבאהבה,\n{photographer_name}')
     } else {
       setEmailModalSubject(photographer.email_album_subject || 'האלבום שלך מוכן לצפייה 📸')
       setEmailModalBody(photographer.email_album_body || 'שלום,\n\nהאלבום שלך מוכן!\n\nבברכה,\n{photographer_name}')

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const defaultSubject = emailType === 'album'
       ? ((ph.email_album_subject as string) || 'האלבום שלך מוכן לצפייה 📸')
-      : ((ph.email_subject as string) || 'התמונות שלך מוכנות לבחירה 📷')
+      : ((ph.email_subject as string) || 'הגלריה שלך מוכנה! הגיע הזמן לבחור את התמונות המנצחות')
     const defaultBody = emailType === 'album'
       ? ((ph.email_album_body as string) || '')
       : ((ph.email_body as string) || '')
