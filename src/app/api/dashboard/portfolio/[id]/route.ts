@@ -56,15 +56,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('instructions' in updates) allowed.instructions = updates.instructions
   if ('is_done' in updates) allowed.is_done = updates.is_done
   if ('client_password' in updates) allowed.client_password = updates.client_password || null
+  if ('title' in updates) {
+    const t = String(updates.title).trim()
+    if (!t) return Response.json({ error: 'שם לא יכול להיות ריק' }, { status: 400 })
+    allowed.title = t
+  }
 
   if ('quota' in updates) {
-    const { count } = await admin
-      .from('selections')
-      .select('*', { count: 'exact', head: true })
-      .eq('portfolio_id', id)
-    if ((count ?? 0) > 0) {
-      return Response.json({ error: 'לא ניתן לשנות מכסה לאחר שהלקוחה כבר בחרה תמונות' }, { status: 400 })
-    }
     const q = Number(updates.quota)
     if (!Number.isInteger(q) || q < 1 || q > 999) {
       return Response.json({ error: 'מכסה לא תקינה' }, { status: 400 })

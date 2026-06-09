@@ -69,6 +69,10 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   const [emailModalSubject, setEmailModalSubject] = useState('')
   const [emailModalBody, setEmailModalBody] = useState('')
   const [hasAlbum, setHasAlbum] = useState(false)
+  const [portfolioTitle, setPortfolioTitle] = useState(portfolio.title)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(portfolio.title)
+  const [savingTitle, setSavingTitle] = useState(false)
   const [quota, setQuota] = useState(portfolio.quota)
   const [editingQuota, setEditingQuota] = useState(false)
   const [quotaDraft, setQuotaDraft] = useState(String(portfolio.quota))
@@ -501,6 +505,25 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     setEditingQuota(false)
   }
 
+  async function saveTitle() {
+    const val = titleDraft.trim()
+    if (!val) { setTitleDraft(portfolioTitle); setEditingTitle(false); return }
+    if (val === portfolioTitle) { setEditingTitle(false); return }
+    setSavingTitle(true)
+    try {
+      const res = await fetch(`/api/dashboard/portfolio/${portfolio.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: val }),
+      })
+      const data = await res.json()
+      if (res.ok) { setPortfolioTitle(val); toast('שם התיק עודכן') }
+      else toast(data.error || 'שגיאה בשמירה', 'error')
+    } catch { toast('שגיאה', 'error') }
+    setSavingTitle(false)
+    setEditingTitle(false)
+  }
+
   function photoName(photo: Photo): string {
     return photo.name || ''
   }
@@ -645,10 +668,10 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     }
 
     const lines = [
-      `דוח תמונות שנבחרו — ${portfolio.title}`,
+      `דוח תמונות שנבחרו — ${portfolioTitle}`,
       `לקוחה: ${portfolio.client_email}`,
       `תאריך: ${new Date().toLocaleDateString('he-IL')}`,
-      `סה"כ נבחרו: ${approvedPhotos.length} מתוך ${portfolio.quota}`,
+      `סה"כ נבחרו: ${approvedPhotos.length} מתוך ${quota}`,
       '',
     ]
 
@@ -661,7 +684,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `בחירות-${portfolio.title}.txt`
+    a.download = `בחירות-${portfolioTitle}.txt`
     a.click()
   }
 
@@ -673,7 +696,26 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
           <ArrowRight size={18} />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-stone-800 truncate">{portfolio.title}</h1>
+          {editingTitle ? (
+            <input
+              autoFocus
+              type="text"
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') { setEditingTitle(false); setTitleDraft(portfolioTitle) } }}
+              className="text-xl font-bold text-stone-800 w-full bg-transparent border-b border-stone-300 focus:outline-none focus:border-rose-300 truncate"
+              disabled={savingTitle}
+            />
+          ) : (
+            <h1
+              className="text-xl font-bold text-stone-800 truncate cursor-pointer hover:text-stone-500"
+              title="לחץ לשינוי שם"
+              onClick={() => { setTitleDraft(portfolioTitle); setEditingTitle(true) }}
+            >
+              {portfolioTitle}
+            </h1>
+          )}
           <p className="text-stone-400 text-xs mt-0.5 truncate" dir="ltr">{portfolio.client_email}</p>
         </div>
         <div className="text-right text-xs text-stone-400 shrink-0">
@@ -696,9 +738,12 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
             ) : (
               <button
                 type="button"
-                onClick={() => { if (selections.length === 0) { setQuotaDraft(String(quota)); setEditingQuota(true) } }}
-                title={selections.length === 0 ? 'לחץ לעריכת המכסה' : 'לא ניתן לשנות מכסה לאחר שהלקוחה בחרה תמונות'}
-                className={selections.length === 0 ? 'underline decoration-dashed cursor-pointer hover:text-stone-600' : 'cursor-default'}
+                onClick={() => {
+                  if (selections.length > 0 && !confirm('הלקוחה כבר בחרה תמונות. לשנות את המכסה בכל זאת?')) return
+                  setQuotaDraft(String(quota)); setEditingQuota(true)
+                }}
+                title="לחץ לעריכת המכסה"
+                className="underline decoration-dashed cursor-pointer hover:text-stone-600"
               >
                 {quota}
               </button>
