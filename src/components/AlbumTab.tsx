@@ -6,6 +6,13 @@ import type { Album } from '@/lib/types'
 import AlbumViewer from './AlbumViewer'
 import AlbumImageEditor from './AlbumImageEditor'
 
+function getPageLabel(index: number, total: number, lastSingle: boolean): string {
+  if (index === 0) return '1'
+  if (lastSingle && index === total - 1) return String(index * 2)
+  const first = index * 2
+  return `${first}-${first + 1}`
+}
+
 function applyTransform(url: string, transform: string): string {
   if (url.startsWith('/api/image-proxy?')) {
     const base = url.replace(/&tr=[^&]*/, '')
@@ -163,6 +170,8 @@ export default function AlbumTab({ portfolioId, color }: Props) {
           {/* Only one album per portfolio */}
           {albums.slice(0, 1).map(album => {
             const thumb = getAlbumThumb(album)
+            const total = album.image_urls?.length ?? album.page_count ?? 0
+            const lastSingle = !!(album.last_page_single && total > 1)
             const noteEntries = album.spread_notes
               ? Object.entries(album.spread_notes).sort((a, b) => Number(a[0]) - Number(b[0]))
               : []
@@ -253,12 +262,16 @@ export default function AlbumTab({ portfolioId, color }: Props) {
                     הערות לקוחה על האלבום
                   </div>
                   <div className="space-y-1.5">
-                    {noteEntries.map(([pageIndex, note]) => (
-                      <div key={pageIndex} className="flex items-start gap-2 text-xs text-stone-600">
-                        <span className="shrink-0 font-medium text-stone-400 w-14">עמוד {Number(pageIndex) + 1}:</span>
-                        <span className="text-stone-700">{note}</span>
-                      </div>
-                    ))}
+                    {noteEntries.map(([pageIndex, note]) => {
+                      const label = getPageLabel(Number(pageIndex), total, lastSingle)
+                      const pageText = label.includes('-') ? `עמודים ${label}` : `עמוד ${label}`
+                      return (
+                        <div key={pageIndex} className="flex items-start gap-2 text-xs text-stone-600">
+                          <span className="shrink-0 font-medium text-stone-400 w-20">{pageText}:</span>
+                          <span className="text-stone-700">{note}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

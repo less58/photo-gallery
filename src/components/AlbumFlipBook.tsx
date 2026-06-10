@@ -434,7 +434,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
           </div>
         ) : currentNote ? (
           <div
-            className="flex items-center gap-2 rounded-xl px-3 py-2 border"
+            className="flex items-center gap-2 rounded-xl px-3 py-2 border w-full"
             style={{ background: color + '18', borderColor: color + '60' }}
           >
             <MessageSquare size={14} style={{ color }} className="shrink-0" />
