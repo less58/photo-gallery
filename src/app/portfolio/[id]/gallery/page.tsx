@@ -57,7 +57,7 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
 
   function proxy(url: string | null | undefined): string | null {
     if (!url) return null
-    return `/api/image-proxy?t=${encryptUrl(url)}`
+    return `/api/image-proxy?t=${encryptUrl(url, id)}`
   }
 
   function proxyPhoto(photo: Photo): Photo {

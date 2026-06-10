@@ -33,7 +33,7 @@ export default async function PortfolioCoverPage(props: PageProps<'/portfolio/[i
 
   function proxy(url: string | null): string | null {
     if (!url) return null
-    return `/api/image-proxy?t=${encryptUrl(url)}`
+    return `/api/image-proxy?t=${encryptUrl(url, id)}`
   }
 
   return (

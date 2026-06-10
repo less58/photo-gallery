@@ -7,14 +7,28 @@ export async function GET(req: NextRequest) {
   const sessionRaw = cookieStore.get('portfolio_session')?.value
   if (!sessionRaw) return new Response('unauthorized', { status: 401 })
 
+  let session: { portfolioId: string } | null = null
+  try {
+    session = JSON.parse(sessionRaw)
+  } catch {
+    return new Response('unauthorized', { status: 401 })
+  }
+
   const token = req.nextUrl.searchParams.get('t')
   if (!token) return new Response('missing token', { status: 400 })
 
   let url: string
+  let tokenPortfolioId: string
   try {
-    url = decryptUrl(token)
+    const decoded = decryptUrl(token)
+    url = decoded.url
+    tokenPortfolioId = decoded.portfolioId
   } catch {
     return new Response('invalid token', { status: 400 })
+  }
+
+  if (!session || session.portfolioId !== tokenPortfolioId) {
+    return new Response('forbidden', { status: 403 })
   }
 
   const tr = req.nextUrl.searchParams.get('tr')
