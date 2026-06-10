@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (token) {
       try { portfolioId = decryptUrl(token).portfolioId } catch { /* ignore */ }
     }
-    const dest = portfolioId ? `/portfolio/${portfolioId}` : '/login'
+    const dest = portfolioId ? `/portfolio/${portfolioId}/enter` : '/login'
     return NextResponse.redirect(new URL(dest, req.url))
   }
 
