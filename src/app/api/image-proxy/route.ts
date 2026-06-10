@@ -1,8 +1,28 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { decryptUrl, applyTransform } from '@/lib/imageToken'
 
 export async function GET(req: NextRequest) {
+  const token = req.nextUrl.searchParams.get('t')
+
+  // Detect direct browser navigation (F12 "open in new tab", paste URL, etc.)
+  const secFetchDest = req.headers.get('sec-fetch-dest')
+  const accept = req.headers.get('accept') || ''
+  const isDirectNavigation =
+    secFetchDest === 'document' ||
+    (!secFetchDest && accept.includes('text/html') && !accept.includes('image/'))
+
+  if (isDirectNavigation) {
+    // Redirect to portfolio password page instead of serving the image
+    let portfolioId: string | null = null
+    if (token) {
+      try { portfolioId = decryptUrl(token).portfolioId } catch { /* ignore */ }
+    }
+    const dest = portfolioId ? `/portfolio/${portfolioId}` : '/login'
+    return NextResponse.redirect(new URL(dest, req.url))
+  }
+
+  // Normal image load — require valid session tied to this portfolio
   const cookieStore = await cookies()
   const sessionRaw = cookieStore.get('portfolio_session')?.value
   if (!sessionRaw) return new Response('unauthorized', { status: 401 })
@@ -14,7 +34,6 @@ export async function GET(req: NextRequest) {
     return new Response('unauthorized', { status: 401 })
   }
 
-  const token = req.nextUrl.searchParams.get('t')
   if (!token) return new Response('missing token', { status: 400 })
 
   let url: string
@@ -42,7 +61,7 @@ export async function GET(req: NextRequest) {
     return new Response(buf, {
       headers: {
         'content-type': ct,
-        'cache-control': 'private, max-age=86400',
+        'cache-control': 'no-store',
       },
     })
   } catch {
