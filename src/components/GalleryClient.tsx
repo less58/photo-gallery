@@ -75,8 +75,6 @@ export default function GalleryClient({
   const [showChat, setShowChat] = useState(false)
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
-  const albumAutoOpenedRef = useRef(false)
-
   // Album viewer state — auto-open if default tab is albums with a single album
   const [viewingAlbum, setViewingAlbum] = useState<Album | null>(() =>
     isDone && albums.length === 1 ? albums[0] : null
@@ -104,13 +102,12 @@ export default function GalleryClient({
   const lbDragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 })
   const lightboxContainerRef = useRef<HTMLDivElement>(null)
 
-  // Auto-open single album when navigating to albums tab (first time)
+  // Auto-open album when navigating to albums tab
   useEffect(() => {
-    if (tab === 'albums' && albums.length === 1 && !albumAutoOpenedRef.current) {
-      albumAutoOpenedRef.current = true
+    if (tab === 'albums' && albums.length > 0 && !viewingAlbum) {
       setViewingAlbum(albums[0])
     }
-  }, [tab, albums])
+  }, [tab, albums, viewingAlbum])
 
   // Poll for unread messages from photographer (badge on chat button)
   useEffect(() => {
@@ -421,12 +418,11 @@ export default function GalleryClient({
             )}
             {albums.length > 0 && (
               <button
-                onClick={() => setTab('albums')}
+                onClick={() => { setTab('albums'); setViewingAlbum(albums[0]) }}
                 className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition flex items-center gap-1"
                 style={tab === 'albums' ? { background: color, color: '#fff' } : { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
                 <BookOpen size={11} />
-                אלבומים
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{albums.length}</span>
+                אלבום
               </button>
             )}
 
@@ -761,7 +757,7 @@ export default function GalleryClient({
 
       {/* Album viewer */}
       {viewingAlbum && (
-        <AlbumViewer album={viewingAlbum} onClose={() => setViewingAlbum(null)} allowDownload={allowAlbumDownload} color={color} />
+        <AlbumViewer album={viewingAlbum} onClose={() => { setViewingAlbum(null); setTab('gallery') }} allowDownload={allowAlbumDownload} color={color} />
       )}
 
       {/* ── Lightbox ── */}

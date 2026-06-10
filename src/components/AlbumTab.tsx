@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Trash2, BookOpen, Loader2, Eye, Images, Pencil, Check, X, Pen } from 'lucide-react'
+import { Trash2, BookOpen, Loader2, Eye, Images, Pencil, Check, X, Pen, MessageSquare } from 'lucide-react'
 import type { Album } from '@/lib/types'
 import AlbumViewer from './AlbumViewer'
 import AlbumImageEditor from './AlbumImageEditor'
@@ -163,8 +163,12 @@ export default function AlbumTab({ portfolioId, color }: Props) {
           {/* Only one album per portfolio */}
           {albums.slice(0, 1).map(album => {
             const thumb = getAlbumThumb(album)
+            const noteEntries = album.spread_notes
+              ? Object.entries(album.spread_notes).sort((a, b) => Number(a[0]) - Number(b[0]))
+              : []
             return (
-              <div key={album.id}
+              <div key={album.id} className="space-y-2">
+              <div
                 className="flex items-center gap-3 px-3 py-3 rounded-xl border border-stone-200 bg-stone-50 group hover:bg-stone-100 transition">
                 {/* Thumbnail */}
                 <div className="w-14 h-10 rounded-lg overflow-hidden shrink-0 bg-stone-200 flex items-center justify-center">
@@ -239,6 +243,25 @@ export default function AlbumTab({ portfolioId, color }: Props) {
                       : <Trash2 size={14} />}
                   </button>
                 </div>
+              </div>
+
+              {/* Client notes per page */}
+              {noteEntries.length > 0 && (
+                <div className="rounded-xl border border-stone-200 bg-white p-3 space-y-2" dir="rtl">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-500">
+                    <MessageSquare size={12} />
+                    הערות לקוחה על האלבום
+                  </div>
+                  <div className="space-y-1.5">
+                    {noteEntries.map(([pageIndex, note]) => (
+                      <div key={pageIndex} className="flex items-start gap-2 text-xs text-stone-600">
+                        <span className="shrink-0 font-medium text-stone-400 w-14">עמוד {Number(pageIndex) + 1}:</span>
+                        <span className="text-stone-700">{note}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               </div>
             )
           })}
