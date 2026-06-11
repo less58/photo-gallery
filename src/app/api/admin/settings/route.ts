@@ -23,6 +23,8 @@ export async function PATCH(req: NextRequest) {
     gmail_app_password: body.gmailAppPassword || null,
     resend_api_key: body.resendApiKey || null,
     sender_email: body.senderEmail || null,
+    email_subject: body.approvalEmailSubject || null,
+    email_body: body.approvalEmailBody || null,
   }
 
   const { data: existing } = await admin

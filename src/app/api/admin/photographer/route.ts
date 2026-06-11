@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'אין הרשאה' }, { status: 403 })
   }
 
-  const { name, email, password } = await req.json()
+  const { name, email, password, skipEmail } = await req.json()
   if (!name || !email || !password) {
     return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
   }
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     .eq('email', SUPER_ADMIN_EMAIL)
     .maybeSingle()
 
-  if (adminSettings?.send_client_emails) {
+  if (!skipEmail && adminSettings?.send_client_emails) {
     try {
       const siteUrl = req.nextUrl.origin
       const html = `

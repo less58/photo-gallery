@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import AdminPanel from '@/components/AdminPanel'
+import { SUPER_ADMIN_EMAIL } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,5 +31,20 @@ export default async function AdminPage() {
 
   if (requestsError) console.error('Admin account requests error:', requestsError.message)
 
-  return <AdminPanel initialPhotographers={list} initialRequests={requests || []} />
+  const { data: adminSettings } = await supabase
+    .from('photographers')
+    .select('email_subject, email_body')
+    .eq('email', SUPER_ADMIN_EMAIL)
+    .maybeSingle()
+
+  return (
+    <AdminPanel
+      initialPhotographers={list}
+      initialRequests={requests || []}
+      approvalEmailTemplate={adminSettings ? {
+        subject: adminSettings.email_subject,
+        body: adminSettings.email_body,
+      } : null}
+    />
+  )
 }

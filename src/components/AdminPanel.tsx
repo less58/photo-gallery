@@ -1,8 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Plus, Camera, FolderOpen, X, Lock, LockOpen } from 'lucide-react'
+import { Check, Plus, Camera, FolderOpen, X, Lock, LockOpen, Mail, CheckCircle2, AlertCircle } from 'lucide-react'
 import EmailInput from './EmailInput'
+import { useToast } from './Toast'
+
+const DEFAULT_APPROVAL_SUBJECT = 'ברוכה הבאה! החשבון שלך ב-SELECT IT נפתח'
+const DEFAULT_APPROVAL_BODY = `שלום {name},
+
+שמחים לבשר שחשבונך במערכת SELECT IT נפתח!
+
+פרטי כניסה:
+מייל: {email}
+סיסמה: {password}
+
+כניסה למערכת: {link}
+
+בהצלחה!`
 
 type Photographer = {
   id: string
@@ -23,18 +37,38 @@ type AccountRequest = {
   created_at: string
 }
 
+type ApprovalModal = {
+  req: AccountRequest
+  password: string
+  subject: string
+  body: string
+}
+
+function fillTemplate(template: string, vars: Record<string, string>) {
+  return Object.entries(vars).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, v), template)
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 export default function AdminPanel({
   initialPhotographers,
   initialRequests,
+  approvalEmailTemplate,
 }: {
   initialPhotographers: Photographer[]
   initialRequests: AccountRequest[]
+  approvalEmailTemplate: { subject: string | null; body: string | null } | null
 }) {
+  const toast = useToast()
   const [list, setList] = useState(initialPhotographers)
   const [requests, setRequests] = useState(initialRequests)
   const [showModal, setShowModal] = useState(false)
+  const [approvalModal, setApprovalModal] = useState<ApprovalModal | null>(null)
+  const [approvingModal, setApprovingModal] = useState(false)
   const [toggling, setToggling] = useState<string | null>(null)
-  const [approving, setApproving] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState<string | null>(null)
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -77,47 +111,87 @@ export default function AdminPanel({
     return Array.from(bytes, b => chars[b % chars.length]).join('')
   }
 
-  async function approveRequest(req: AccountRequest) {
-    setApproving(req.id)
-    setFormError('')
+  function startApprove(req: AccountRequest) {
     const password = generatePassword()
+    const vars: Record<string, string> = {
+      name: req.name,
+      email: req.email,
+      password,
+      link: (typeof window !== 'undefined' ? window.location.origin : '') + '/auth/login',
+    }
+    setApprovalModal({
+      req,
+      password,
+      subject: fillTemplate(approvalEmailTemplate?.subject || DEFAULT_APPROVAL_SUBJECT, vars),
+      body: fillTemplate(approvalEmailTemplate?.body || DEFAULT_APPROVAL_BODY, vars),
+    })
+    setFormError('')
+  }
+
+  async function confirmApprove(sendEmail: boolean) {
+    if (!approvalModal) return
+    setApprovingModal(true)
+    setFormError('')
 
     const createRes = await fetch('/api/admin/photographer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: req.name, email: req.email, password }),
+      body: JSON.stringify({
+        name: approvalModal.req.name,
+        email: approvalModal.req.email,
+        password: approvalModal.password,
+        skipEmail: true,
+      }),
     })
     const created = await createRes.json()
-
     const alreadyExists = createRes.status === 409
+
     if (!createRes.ok && !alreadyExists) {
       setFormError(created.error || 'שגיאה באישור הבקשה')
-      setApproving(null)
+      setApprovingModal(false)
       return
     }
 
-    await fetch(`/api/admin/account-request/${req.id}`, {
+    const approveRes = await fetch(`/api/admin/account-request/${approvalModal.req.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'approved' }),
+      body: JSON.stringify({
+        status: 'approved',
+        sendEmail,
+        emailTo: approvalModal.req.email,
+        emailSubject: approvalModal.subject,
+        emailBody: approvalModal.body,
+      }),
     })
+    const approveData = await approveRes.json()
 
     if (!alreadyExists) {
       setList(prev => [{ ...created, portfolioCount: 0, is_frozen: false }, ...prev])
     }
-    setRequests(prev => prev.filter(r => r.id !== req.id))
-    setApproving(null)
+    setRequests(prev => prev.filter(r => r.id !== approvalModal.req.id))
+    setApprovalModal(null)
+    setApprovingModal(false)
+
+    if (sendEmail) {
+      if (approveData.emailSent) {
+        toast('החשבון נפתח · מייל נשלח בהצלחה ✓')
+      } else {
+        toast(`החשבון נפתח · שגיאה בשליחת מייל: ${approveData.emailError || 'שגיאה'}`, 'error')
+      }
+    } else {
+      toast('החשבון נפתח בהצלחה')
+    }
   }
 
   async function rejectRequest(req: AccountRequest) {
-    setApproving(req.id)
+    setRejecting(req.id)
     await fetch(`/api/admin/account-request/${req.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'rejected' }),
     })
     setRequests(prev => prev.filter(r => r.id !== req.id))
-    setApproving(null)
+    setRejecting(null)
   }
 
   const active = list.filter(p => !p.is_frozen)
@@ -156,12 +230,13 @@ export default function AdminPanel({
                   <p className="font-semibold text-stone-800 text-sm">{req.name}</p>
                   <p className="text-stone-400 text-xs mt-0.5 truncate" dir="ltr">{req.email}</p>
                   {req.details && <p className="text-stone-500 text-xs mt-1 leading-5">{req.details}</p>}
+                  <p className="text-stone-300 text-[11px] mt-1">{formatDate(req.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => rejectRequest(req)}
-                    disabled={approving === req.id}
+                    disabled={rejecting === req.id || approvingModal}
                     className="flex items-center gap-1 px-2.5 py-2 rounded-lg text-stone-400 border border-stone-200 text-xs font-semibold hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50 transition-colors"
                   >
                     <X size={13} />
@@ -169,13 +244,13 @@ export default function AdminPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={() => approveRequest(req)}
-                    disabled={approving === req.id}
+                    onClick={() => startApprove(req)}
+                    disabled={rejecting === req.id || approvingModal}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-white text-xs font-semibold disabled:opacity-50"
                     style={{ background: 'var(--brand)' }}
                   >
                     <Check size={13} />
-                    {approving === req.id ? 'מאשרת...' : 'אישור'}
+                    אישור
                   </button>
                 </div>
               </div>
@@ -257,6 +332,97 @@ export default function AdminPanel({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Approval + Email Modal */}
+      {approvalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh]">
+
+            <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 shrink-0">
+              <h2 className="font-bold text-stone-800 flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-green-500" />
+                אישור ופתיחת חשבון
+              </h2>
+              <button onClick={() => !approvingModal && setApprovalModal(null)}
+                disabled={approvingModal}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 transition disabled:opacity-30">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 min-h-0">
+              {/* Requester info */}
+              <div className="bg-stone-50 rounded-xl p-4 space-y-0.5 border border-stone-100">
+                <p className="text-sm font-semibold text-stone-800">{approvalModal.req.name}</p>
+                <p className="text-xs text-stone-400" dir="ltr">{approvalModal.req.email}</p>
+                {approvalModal.req.details && (
+                  <p className="text-xs text-stone-500 mt-1.5 leading-5">{approvalModal.req.details}</p>
+                )}
+                <p className="text-[11px] text-stone-300 pt-0.5">{formatDate(approvalModal.req.created_at)}</p>
+              </div>
+
+              {/* Email fields */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Mail size={12} />
+                  מייל לשליחה ללקוח
+                </p>
+
+                <div>
+                  <label className={lbl}>נושא</label>
+                  <input
+                    value={approvalModal.subject}
+                    onChange={e => setApprovalModal(m => m ? { ...m, subject: e.target.value } : m)}
+                    className={inp}
+                    dir="auto"
+                    disabled={approvingModal}
+                  />
+                </div>
+
+                <div>
+                  <label className={lbl}>גוף ההודעה</label>
+                  <textarea
+                    value={approvalModal.body}
+                    onChange={e => setApprovalModal(m => m ? { ...m, body: e.target.value } : m)}
+                    className={inp + ' resize-none text-xs leading-6'}
+                    rows={11}
+                    dir="auto"
+                    disabled={approvingModal}
+                  />
+                </div>
+              </div>
+
+              {formError && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-100">
+                  <AlertCircle size={14} className="text-red-400 shrink-0" />
+                  <p className="text-red-600 text-xs">{formError}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-stone-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => confirmApprove(false)}
+                disabled={approvingModal}
+                className="px-4 py-2.5 rounded-xl border border-stone-200 text-stone-500 text-sm font-medium hover:bg-stone-50 disabled:opacity-50 transition whitespace-nowrap"
+              >
+                אשר בלי מייל
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmApprove(true)}
+                disabled={approvingModal}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-50 transition flex-1 justify-center"
+                style={{ background: 'var(--brand)' }}
+              >
+                <Mail size={14} />
+                {approvingModal ? 'מעבד...' : 'שלח מייל ואשר'}
+              </button>
+            </div>
           </div>
         </div>
       )}

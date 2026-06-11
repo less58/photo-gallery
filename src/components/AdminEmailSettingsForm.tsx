@@ -5,15 +5,30 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useToast } from './Toast'
 import EmailInput from './EmailInput'
 
+const DEFAULT_APPROVAL_SUBJECT = 'ברוכה הבאה! החשבון שלך ב-SELECT IT נפתח'
+const DEFAULT_APPROVAL_BODY = `שלום {name},
+
+שמחים לבשר שחשבונך במערכת SELECT IT נפתח!
+
+פרטי כניסה:
+מייל: {email}
+סיסמה: {password}
+
+כניסה למערכת: {link}
+
+בהצלחה!`
+
 type AdminEmailSettings = {
-  name: string
-  send_client_emails: boolean | null
-  email_provider: string | null
-  gmail_address: string | null
-  gmail_app_password: string | null
-  resend_api_key: string | null
-  sender_email: string | null
-  sender_display_name: string | null
+  name?: string
+  send_client_emails?: boolean | null
+  email_provider?: string | null
+  gmail_address?: string | null
+  gmail_app_password?: string | null
+  resend_api_key?: string | null
+  sender_email?: string | null
+  sender_display_name?: string | null
+  email_subject?: string | null
+  email_body?: string | null
 }
 
 export default function AdminEmailSettingsForm({ settings }: { settings: AdminEmailSettings }) {
@@ -25,6 +40,8 @@ export default function AdminEmailSettingsForm({ settings }: { settings: AdminEm
   const [gmailAppPassword, setGmailAppPassword] = useState(settings.gmail_app_password || '')
   const [resendKey, setResendKey] = useState(settings.resend_api_key || '')
   const [senderEmail, setSenderEmail] = useState(settings.sender_email || '')
+  const [approvalSubject, setApprovalSubject] = useState(settings.email_subject || DEFAULT_APPROVAL_SUBJECT)
+  const [approvalBody, setApprovalBody] = useState(settings.email_body || DEFAULT_APPROVAL_BODY)
   const [showSecret, setShowSecret] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -43,6 +60,8 @@ export default function AdminEmailSettingsForm({ settings }: { settings: AdminEm
           gmailAppPassword: gmailAppPassword || null,
           resendApiKey: resendKey || null,
           senderEmail: senderEmail || null,
+          approvalEmailSubject: approvalSubject || null,
+          approvalEmailBody: approvalBody || null,
         }),
       })
       const data = await res.json()
@@ -60,6 +79,8 @@ export default function AdminEmailSettingsForm({ settings }: { settings: AdminEm
 
   return (
     <form onSubmit={save} className="space-y-4">
+
+      {/* Provider settings */}
       <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-4">
         <label className="flex items-center gap-3 cursor-pointer">
           <div className="relative shrink-0" onClick={() => setSendEmails(v => !v)}>
@@ -67,7 +88,7 @@ export default function AdminEmailSettingsForm({ settings }: { settings: AdminEm
               style={{ background: sendEmails ? '#D4736A' : '#D6D3D1' }} />
             <div className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform ${sendEmails ? 'translate-x-[22px]' : 'translate-x-[3px]'}`} />
           </div>
-          <span className="text-sm text-stone-700">שליחת מייל לצלמת בעת יצירת חשבון</span>
+          <span className="text-sm text-stone-700">שליחת מייל לצלמת בעת יצירת חשבון ידנית</span>
         </label>
 
         <Field label="שם שולח">
@@ -132,9 +153,38 @@ export default function AdminEmailSettingsForm({ settings }: { settings: AdminEm
         )}
       </div>
 
+      {/* Approval email template */}
+      <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-stone-700 mb-0.5">תבנית מייל אישור חשבון</p>
+          <p className="text-xs text-stone-400 mb-3">
+            ישלח לצלמת בעת אישור בקשה — ניתן לערוך לפני כל שליחה.
+            משתנים: <code className="text-rose-500 text-[11px]">{'{name}'}</code>{' '}
+            <code className="text-rose-500 text-[11px]">{'{email}'}</code>{' '}
+            <code className="text-rose-500 text-[11px]">{'{password}'}</code>{' '}
+            <code className="text-rose-500 text-[11px]">{'{link}'}</code>
+          </p>
+        </div>
+        <Field label="נושא המייל">
+          <input value={approvalSubject} onChange={e => setApprovalSubject(e.target.value)}
+            className={input} dir="auto" placeholder={DEFAULT_APPROVAL_SUBJECT} />
+        </Field>
+        <Field label="גוף ההודעה">
+          <textarea value={approvalBody} onChange={e => setApprovalBody(e.target.value)}
+            className={input + ' resize-none text-xs leading-6'} rows={10} dir="auto" />
+        </Field>
+        <button
+          type="button"
+          onClick={() => { setApprovalSubject(DEFAULT_APPROVAL_SUBJECT); setApprovalBody(DEFAULT_APPROVAL_BODY) }}
+          className="text-xs text-stone-400 hover:text-stone-600 underline transition"
+        >
+          איפוס לברירת מחדל
+        </button>
+      </div>
+
       <button type="submit" disabled={saving}
         className="w-full py-3 rounded-xl bg-[#D4736A] text-white text-sm font-semibold disabled:opacity-50">
-        {saving ? 'שומר...' : 'שמירת הגדרות מייל'}
+        {saving ? 'שומר...' : 'שמירת הגדרות'}
       </button>
     </form>
   )

@@ -31,7 +31,7 @@ export default async function AdminSettingsPage() {
       <p className="text-sm text-stone-400 mb-6">
         מכאן יישלחו בקשות פתיחת חשבון, סיסמאות ראשוניות וקישורי איפוס סיסמה לצלמות.
       </p>
-      <AdminEmailSettingsForm settings={settings} />
+      <AdminEmailSettingsForm settings={settings ?? {}} />
     </div>
   )
 }
