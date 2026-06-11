@@ -81,10 +81,11 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const previewRef = useRef<HTMLDivElement>(null)
   const wmStartRef = useRef<{ clientX: number; clientY: number; x: number; y: number; size: number } | null>(null)
 
-  // Scale font from Cloudinary px to CSS px so preview matches a 1080px-wide portrait photo.
-  // If preview is 320px wide: fontScale = 1080/320 ≈ 3.4 → preview text is correct size.
-  const PORTRAIT_REF_PX = 1080
-  const fontScale = previewContainerWidth > 0 ? PORTRAIT_REF_PX / previewContainerWidth : 3.5
+  // Font is scaled proportionally to photo width at upload time (reference: 1920px).
+  // So preview accuracy = stored_F / (1920 / previewWidth) = stored_F * previewWidth / 1920.
+  // fontScale = 1920 / previewWidth gives accurate representation for any photo orientation.
+  const PORTRAIT_REF_PX = 1920
+  const fontScale = previewContainerWidth > 0 ? PORTRAIT_REF_PX / previewContainerWidth : 6
 
   async function uploadLogo(file: File) {
     setUploadingLogo(true)
@@ -452,7 +453,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
           )}
         </div>
 
-        <p className="text-[10px] text-stone-400 -mt-2 mb-3 text-center">תצוגה מדויקת לפורטרט 1080px · אם הטקסט נחתך כאן — הוא יחָּתֵך גם בפועל</p>
+        <p className="text-[10px] text-stone-400 -mt-2 mb-3 text-center">הסימן מוקטן אוטומטית לפי רוחב כל תמונה — תצוגה זו מדויקת לכל מצלמה</p>
 
         {/* ── Image mode controls ── */}
         {watermarkType === 'image' && (
@@ -544,7 +545,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
             )}
 
             {watermarkText && watermarkPosition !== 'tiled' &&
-              watermarkFontSize * watermarkText.length * 0.6 > PORTRAIT_REF_PX * 0.88 && (
+              watermarkFontSize * watermarkText.length * 0.6 > PORTRAIT_REF_PX * 0.9 && (
               <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
                 הגופן גדול מדי — הטקסט יִחָּתֵך בתמונות צרות. הקטן את הגודל.
               </p>

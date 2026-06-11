@@ -173,25 +173,28 @@ export default function GalleryClient({
   const approvedPhotos = allPhotos.filter(p => selections[p.id] === 'approved')
 
   const moveLightbox = useCallback((direction: -1 | 1) => {
-    if (!lightbox || visiblePhotos.length <= 1) return
-    const idx = visiblePhotos.findIndex(p => p.id === lightbox.id)
+    if (!lightbox) return
+    const photos = tab === 'selected' ? approvedPhotos : visiblePhotos
+    if (photos.length <= 1) return
+    const idx = photos.findIndex(p => p.id === lightbox.id)
     if (idx < 0) return
-    const nextIndex = (idx + direction + visiblePhotos.length) % visiblePhotos.length
-    setLightbox(visiblePhotos[nextIndex])
-  }, [lightbox, visiblePhotos])
+    setLightbox(photos[(idx + direction + photos.length) % photos.length])
+  }, [lightbox, visiblePhotos, approvedPhotos, tab])
 
   // Preload adjacent photos when navigating lightbox
   useEffect(() => {
-    if (!lightbox || visiblePhotos.length <= 1) return
-    const idx = visiblePhotos.findIndex(p => p.id === lightbox.id)
+    if (!lightbox) return
+    const photos = tab === 'selected' ? approvedPhotos : visiblePhotos
+    if (photos.length <= 1) return
+    const idx = photos.findIndex(p => p.id === lightbox.id)
     if (idx < 0) return
-    const next = visiblePhotos[(idx + 1) % visiblePhotos.length]
-    const prev = visiblePhotos[(idx - 1 + visiblePhotos.length) % visiblePhotos.length]
+    const next = photos[(idx + 1) % photos.length]
+    const prev = photos[(idx - 1 + photos.length) % photos.length]
     ;[next, prev].filter(p => p && p.id !== lightbox.id).forEach(p => {
       const img = new window.Image()
       img.src = p.url
     })
-  }, [lightbox?.id, visiblePhotos.length])
+  }, [lightbox?.id, visiblePhotos.length, approvedPhotos.length, tab])
 
   // Keyboard navigation for lightbox
   useEffect(() => {
@@ -511,7 +514,10 @@ export default function GalleryClient({
             <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 space-y-2">
               {approvedPhotos.map(photo => (
                 <div key={photo.id} className="break-inside-avoid relative group">
-                  <div className="relative rounded-lg overflow-hidden bg-stone-900">
+                  <div
+                    className="relative rounded-lg overflow-hidden bg-stone-900 cursor-pointer"
+                    onClick={() => setLightbox(photo)}
+                  >
                     <Image
                       src={photo.thumbnail_url || photo.url}
                       alt={photo.name || ''}
@@ -519,7 +525,7 @@ export default function GalleryClient({
                       unoptimized
                       draggable={false}
                       onContextMenu={e => e.preventDefault()}
-                      className="w-full h-auto object-cover select-none"
+                      className="w-full h-auto object-cover select-none transition-transform duration-300 group-hover:scale-[1.02]"
                     />
                     <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center"
                       style={{ background: STATUS_COLOR.approved }}>
@@ -533,7 +539,7 @@ export default function GalleryClient({
                     {/* Remove button */}
                     <button
                       type="button"
-                      onClick={() => handleMark(photo.id, null)}
+                      onClick={e => { e.stopPropagation(); handleMark(photo.id, null) }}
                       className="absolute top-2 left-2 w-7 h-7 rounded-full bg-red-500 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow"
                       title="הסר בחירה"
                     >

@@ -376,6 +376,18 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       const name = file.name
       const resized = await resizeForUpload(file)
 
+      // Scale watermark font proportionally to actual image width.
+      // resizeForUpload caps at 1200px longest side; font_size is authored for 1920px wide.
+      // Without scaling a portrait at 800px wide would show font 2x too large.
+      let photoWidth = 1920
+      try {
+        const bmp = await createImageBitmap(resized)
+        photoWidth = bmp.width
+        bmp.close()
+      } catch { /* fall back to 1920 */ }
+      const storedFontSize = photographer.watermark_font_size ?? 120
+      const scaledFontSize = Math.max(8, Math.round(storedFontSize * Math.min(photoWidth, 1920) / 1920))
+
       const fd = new FormData()
       fd.append('file', resized)
       fd.append('folder', `portfolios/${portfolio.id}`)
@@ -383,7 +395,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         fd.append('watermarkText', photographer.watermark_text)
         fd.append('watermarkOpacity', String(photographer.watermark_opacity ?? 30))
         fd.append('watermarkPosition', photographer.watermark_position ?? 'free')
-        fd.append('watermarkFontSize', String(photographer.watermark_font_size ?? 120))
+        fd.append('watermarkFontSize', String(scaledFontSize))
         fd.append('watermarkColor', photographer.watermark_color ?? '#ffffff')
         fd.append('watermarkX', String(photographer.watermark_x ?? 0.5))
         fd.append('watermarkY', String(photographer.watermark_y ?? 0.85))
