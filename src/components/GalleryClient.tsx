@@ -73,6 +73,16 @@ export default function GalleryClient({
   })
   const [sendingReport, setSendingReport] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [colCount, setColCount] = useState(2)
+  useEffect(() => {
+    function update() {
+      const w = window.innerWidth
+      setColCount(w >= 1024 ? 4 : w >= 640 ? 3 : 2)
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
   const [unreadFromPhotographer, setUnreadFromPhotographer] = useState(0)
   const galleryRef = useRef<HTMLDivElement>(null)
   // Album viewer state — auto-open if default tab is albums with a single album
@@ -540,92 +550,99 @@ export default function GalleryClient({
               אין תמונות בסשן זה
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-start">
-              {visiblePhotos.map((photo, i) => {
-                const status = selections[photo.id] ?? null
-                const inCompare = compareQueue.includes(photo.id)
-                const canApprove = status === 'approved' || !isApproveBlocked
-                return (
-                  <div
-                    key={photo.id}
-                    className="relative group cursor-pointer photo-enter"
-                    style={{ animationDelay: `${Math.min(i * 30, 400)}ms` }}
-                  >
-                    <div
-                      className="relative rounded-lg overflow-hidden bg-stone-900"
-                      onClick={() => setLightbox(photo)}
-                    >
-                      <Image
-                        src={photo.thumbnail_url || photo.url}
-                        alt={photo.name || ''}
-                        width={600}
-                        height={900}
-                        unoptimized
-                        priority={i < 6}
-                        draggable={false}
-                        onContextMenu={e => e.preventDefault()}
-                        className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
-                      />
+            <div className="flex gap-2">
+              {Array.from({ length: colCount }, (_, ci) => (
+                <div key={ci} className="flex-1 flex flex-col gap-2">
+                  {visiblePhotos
+                    .map((photo, i) => ({ photo, i }))
+                    .filter((_, idx) => idx % colCount === ci)
+                    .map(({ photo, i }) => {
+                      const status = selections[photo.id] ?? null
+                      const inCompare = compareQueue.includes(photo.id)
+                      const canApprove = status === 'approved' || !isApproveBlocked
+                      return (
+                        <div
+                          key={photo.id}
+                          className="relative group cursor-pointer photo-enter"
+                          style={{ animationDelay: `${Math.min(i * 30, 400)}ms` }}
+                        >
+                          <div
+                            className="relative rounded-lg overflow-hidden bg-stone-900"
+                            onClick={() => setLightbox(photo)}
+                          >
+                            <Image
+                              src={photo.thumbnail_url || photo.url}
+                              alt={photo.name || ''}
+                              width={600}
+                              height={900}
+                              unoptimized
+                              priority={i < 6}
+                              draggable={false}
+                              onContextMenu={e => e.preventDefault()}
+                              className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
+                            />
 
-                      {/* Status badge */}
-                      {status && (
-                        <div className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-white shadow-lg"
-                          style={{ background: STATUS_COLOR[status] }}>
-                          {status === 'approved' ? <Check size={14} /> : status === 'rejected' ? <X size={14} /> : <HelpCircle size={14} />}
+                            {/* Status badge */}
+                            {status && (
+                              <div className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-white shadow-lg"
+                                style={{ background: STATUS_COLOR[status] }}>
+                                {status === 'approved' ? <Check size={14} /> : status === 'rejected' ? <X size={14} /> : <HelpCircle size={14} />}
+                              </div>
+                            )}
+
+                            {/* Compare ring */}
+                            {inCompare && (
+                              <div className="absolute inset-0 rounded-lg" style={{ outline: `3px solid ${color}`, outlineOffset: '-3px' }} />
+                            )}
+
+                            {/* Photo name — hover on desktop, always visible on mobile */}
+                            {photo.name && (
+                              <div className="absolute inset-x-0 top-0 px-2 pt-1.5 pb-4 pointer-events-none
+                                opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                                style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.65), transparent)' }}>
+                                <p className="text-white/90 text-[10px] truncate" dir="ltr">{photo.name}</p>
+                              </div>
+                            )}
+
+                            {/* Action buttons - always visible on mobile, hover on desktop */}
+                            {!isDone && (
+                              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-3 pt-6
+                                opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
+                                <button type="button"
+                                  disabled={!canApprove}
+                                  onClick={e => { e.stopPropagation(); handleMark(photo.id, status === 'approved' ? null : 'approved') }}
+                                  className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-green-600 hover:bg-green-500 hover:text-white transition-all active:scale-90 shadow disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title={!canApprove ? `הגעת למגבלה של ${quota} תמונות` : undefined}>
+                                  <Check size={16} />
+                                </button>
+                                <button type="button"
+                                  onClick={e => { e.stopPropagation(); handleMark(photo.id, status === 'maybe' ? null : 'maybe') }}
+                                  className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-amber-500 hover:bg-amber-500 hover:text-white transition-all active:scale-90 shadow">
+                                  <HelpCircle size={16} />
+                                </button>
+                                <button type="button"
+                                  onClick={e => { e.stopPropagation(); handleMark(photo.id, status === 'rejected' ? null : 'rejected') }}
+                                  className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow">
+                                  <X size={16} />
+                                </button>
+                                <button type="button"
+                                  onClick={e => handleToggleCompare(photo.id, e)}
+                                  className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 shadow"
+                                  style={inCompare
+                                    ? { background: color, color: '#fff' }
+                                    : { background: 'rgba(255,255,255,0.9)', color: '#3b82f6' }}
+                                  title="השוואה">
+                                  <GitCompare size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-
-                      {/* Compare ring */}
-                      {inCompare && (
-                        <div className="absolute inset-0 rounded-lg" style={{ outline: `3px solid ${color}`, outlineOffset: '-3px' }} />
-                      )}
-
-                      {/* Photo name — hover on desktop, always visible on mobile */}
-                      {photo.name && (
-                        <div className="absolute inset-x-0 top-0 px-2 pt-1.5 pb-4 pointer-events-none
-                          opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                          style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.65), transparent)' }}>
-                          <p className="text-white/90 text-[10px] truncate" dir="ltr">{photo.name}</p>
-                        </div>
-                      )}
-
-                      {/* Action buttons - always visible on mobile, hover on desktop */}
-                      {!isDone && (
-                      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-2 pb-3 pt-6
-                        opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)' }}>
-                        <button type="button"
-                          disabled={!canApprove}
-                          onClick={e => { e.stopPropagation(); handleMark(photo.id, status === 'approved' ? null : 'approved') }}
-                          className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-green-600 hover:bg-green-500 hover:text-white transition-all active:scale-90 shadow disabled:opacity-40 disabled:cursor-not-allowed"
-                          title={!canApprove ? `הגעת למגבלה של ${quota} תמונות` : undefined}>
-                          <Check size={16} />
-                        </button>
-                        <button type="button"
-                          onClick={e => { e.stopPropagation(); handleMark(photo.id, status === 'maybe' ? null : 'maybe') }}
-                          className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-amber-500 hover:bg-amber-500 hover:text-white transition-all active:scale-90 shadow">
-                          <HelpCircle size={16} />
-                        </button>
-                        <button type="button"
-                          onClick={e => { e.stopPropagation(); handleMark(photo.id, status === 'rejected' ? null : 'rejected') }}
-                          className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-90 shadow">
-                          <X size={16} />
-                        </button>
-                        <button type="button"
-                          onClick={e => handleToggleCompare(photo.id, e)}
-                          className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90 shadow"
-                          style={inCompare
-                            ? { background: color, color: '#fff' }
-                            : { background: 'rgba(255,255,255,0.9)', color: '#3b82f6' }}
-                          title="השוואה">
-                          <GitCompare size={14} />
-                        </button>
-                      </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
+                      )
+                    })}
+                </div>
+              ))}
             </div>
           )}
         </div>
