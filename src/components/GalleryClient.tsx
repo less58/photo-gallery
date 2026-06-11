@@ -539,7 +539,7 @@ export default function GalleryClient({
               אין תמונות בסשן זה
             </div>
           ) : (
-            <div className="columns-2 sm:columns-3 lg:columns-4 gap-2 space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {visiblePhotos.map((photo, i) => {
                 const status = selections[photo.id] ?? null
                 const inCompare = compareQueue.includes(photo.id)
@@ -547,22 +547,22 @@ export default function GalleryClient({
                 return (
                   <div
                     key={photo.id}
-                    className="break-inside-avoid relative group cursor-pointer photo-enter"
+                    className="relative group cursor-pointer photo-enter"
                     style={{ animationDelay: `${Math.min(i * 30, 400)}ms` }}
                   >
                     <div
-                      className="relative rounded-lg overflow-hidden bg-stone-900"
+                      className="relative rounded-lg overflow-hidden bg-stone-900 aspect-[3/2]"
                       onClick={() => setLightbox(photo)}
                     >
                       <Image
                         src={photo.thumbnail_url || photo.url}
                         alt={photo.name || ''}
-                        width={600}
-                        height={400}
+                        fill
                         unoptimized
+                        priority={i < 6}
                         draggable={false}
                         onContextMenu={e => e.preventDefault()}
-                        className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
                       />
 
                       {/* Status badge */}
@@ -859,8 +859,8 @@ export default function GalleryClient({
 
             {/* Close button */}
             <button type="button" onClick={() => setLightbox(null)}
-              className="absolute top-2 right-2 text-white/50 hover:text-white p-2 z-10">
-              <X size={22} />
+              className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors">
+              <X size={20} />
             </button>
           </div>
         </div>
