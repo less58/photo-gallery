@@ -123,10 +123,11 @@ export default function GalleryClient({
     return () => { alive = false; clearInterval(interval) }
   }, [portfolioId])
 
-  // Reset zoom+pan when switching photos
+  // Reset zoom+pan+hover when switching photos
   useEffect(() => {
     setLightboxZoom(100)
     setLightboxPan({ x: 0, y: 0 })
+    setHoveredLbBtn(null)
   }, [lightbox?.id])
 
   // Non-passive wheel listener so we can preventDefault and prevent background scroll
