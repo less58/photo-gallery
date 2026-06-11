@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     if (watermarkPublicId) {
       transformation.push(
-        { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, flags: 'relative' },
+        { overlay: { public_id: watermarkPublicId.replace(/\//g, ':') }, gravity: 'center', opacity: watermarkImageOpacity, width: 0.6, height: 0.9, crop: 'fit', flags: 'relative' },
         { flags: 'layer_apply' }
       )
     } else if (watermarkText) {

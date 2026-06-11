@@ -65,6 +65,7 @@ export default function GalleryClient({
   const [compareQueue, setCompareQueue] = useState<string[]>([])
   const [comparePhotos, setComparePhotos] = useState<[Photo, Photo] | null>(null)
   const [lightbox, setLightbox] = useState<Photo | null>(null)
+  const [lightboxHiRes, setLightboxHiRes] = useState(false)
   // Default to albums tab if: portfolio is done, or gallery has expired and has an album
   const [tab, setTab] = useState<GalleryTab>(() => {
     if (isDone && albums.length > 0) return 'albums'
@@ -138,6 +139,12 @@ export default function GalleryClient({
     setLightboxZoom(100)
     setLightboxPan({ x: 0, y: 0 })
     setHoveredLbBtn(null)
+    setLightboxHiRes(false)
+    if (!lightbox) return
+    const hi = new window.Image()
+    hi.onload = () => setLightboxHiRes(true)
+    hi.src = lightbox.url
+    return () => { hi.onload = null }
   }, [lightbox?.id])
 
   // Non-passive wheel listener so we can preventDefault and prevent background scroll
@@ -172,6 +179,19 @@ export default function GalleryClient({
     const nextIndex = (idx + direction + visiblePhotos.length) % visiblePhotos.length
     setLightbox(visiblePhotos[nextIndex])
   }, [lightbox, visiblePhotos])
+
+  // Preload adjacent photos when navigating lightbox
+  useEffect(() => {
+    if (!lightbox || visiblePhotos.length <= 1) return
+    const idx = visiblePhotos.findIndex(p => p.id === lightbox.id)
+    if (idx < 0) return
+    const next = visiblePhotos[(idx + 1) % visiblePhotos.length]
+    const prev = visiblePhotos[(idx - 1 + visiblePhotos.length) % visiblePhotos.length]
+    ;[next, prev].filter(p => p && p.id !== lightbox.id).forEach(p => {
+      const img = new window.Image()
+      img.src = p.url
+    })
+  }, [lightbox?.id, visiblePhotos.length])
 
   // Keyboard navigation for lightbox
   useEffect(() => {
@@ -804,7 +824,7 @@ export default function GalleryClient({
             style={{ cursor: lbGrabbing ? 'grabbing' : lightboxZoom > 100 ? 'grab' : 'default' }}
           >
             <Image
-              src={lightbox.url}
+              src={lightboxHiRes ? lightbox.url : (lightbox.thumbnail_url || lightbox.url)}
               alt={lightbox.name || ''}
               fill unoptimized
               draggable={false}

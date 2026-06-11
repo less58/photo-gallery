@@ -279,11 +279,29 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
     openEmailModal('selection')
   }
 
+  async function resizeCoverFile(file: File): Promise<File> {
+    const MAX_DIM = 1200
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions)
+      if (bitmap.width <= MAX_DIM && bitmap.height <= MAX_DIM) { bitmap.close(); return file }
+      const ratio = Math.min(MAX_DIM / bitmap.width, MAX_DIM / bitmap.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(bitmap.width * ratio)
+      canvas.height = Math.round(bitmap.height * ratio)
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      bitmap.close()
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', 0.9))
+      if (!blob) return file
+      return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })
+    } catch { return file }
+  }
+
   async function uploadCover(file: File) {
     setUploadingCover(true)
     try {
+      const resized = await resizeCoverFile(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', resized)
       fd.append('folder', `portfolios/${portfolio.id}/cover`)
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       if (!res.ok) { toast('שגיאה בהעלאת תמונת הכיסוי', 'error'); return }

@@ -57,7 +57,7 @@ export const UPLOAD_ALLOWED_TYPES = new Set([
 ])
 export const UPLOAD_MAX_SIZE = 50 * 1024 * 1024
 
-const CONCURRENCY = 6
+const CONCURRENCY = 8
 const MAX_RETRIES = 3
 const PROGRESS_THROTTLE_MS = 150
 const RESIZE_MAX_DIMENSION = 1920

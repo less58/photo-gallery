@@ -44,9 +44,6 @@ function JobRow({ job, onDismiss, onCancel }: { job: UploadJob; onDismiss: () =>
           {isActive && (
             <>
               <span className="text-xs text-neutral-400 tabular-nums">{job.done}/{job.total}</span>
-              {ratePerMin > 0 && (
-                <span className="text-xs text-violet-400 tabular-nums">{ratePerMin}/דק׳</span>
-              )}
               <button
                 onClick={onCancel}
                 title="ביטול העלאה"
