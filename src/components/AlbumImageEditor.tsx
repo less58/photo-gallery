@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, Upload, GripVertical, Loader2, Save, AlertCircle } from 'lucide-react'
+import { X, Upload, GripVertical, Loader2, Save, AlertCircle, Trash2 } from 'lucide-react'
 import type { Album } from '@/lib/types'
 
 type SignData = { signature: string; timestamp: number; apiKey: string; cloudName: string; folder: string }
@@ -21,6 +21,26 @@ type Props = {
   onSave: (name: string, imageUrls: string[], lastPageSingle: boolean) => Promise<void>
   onClose: () => void
   editAlbum?: Album
+}
+
+async function resizeAlbumImage(file: File): Promise<File> {
+  const MAX_DIM = 1920
+  const QUALITY = 0.85
+  const resizable = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
+  if (!resizable.has(file.type)) return file
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions)
+    if (bitmap.width <= MAX_DIM && bitmap.height <= MAX_DIM) { bitmap.close(); return file }
+    const ratio = Math.min(MAX_DIM / bitmap.width, MAX_DIM / bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bitmap.width * ratio)
+    canvas.height = Math.round(bitmap.height * ratio)
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+    const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/jpeg', QUALITY))
+    if (!blob) return file
+    return new File([blob], file.name, { type: 'image/jpeg' })
+  } catch { return file }
 }
 
 function uploadXHR(
@@ -133,7 +153,8 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
         if (!sigRes.ok) throw new Error('שגיאת אימות')
         const sig: SignData = await sigRes.json()
 
-        const url = await uploadXHR(file, sig, pct => {
+        const resized = await resizeAlbumImage(file)
+        const url = await uploadXHR(resized, sig, pct => {
           setImages(prev => prev.map(img => img.id === item.id ? { ...img, progress: pct } : img))
           setCurrentUpload(prev => prev ? { ...prev, progress: pct } : prev)
         }, xhrRef)
@@ -315,14 +336,6 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
                       {idx + 1}
                     </div>
 
-                    {img.url && (
-                      <button
-                        onClick={() => removeImage(img.id)}
-                        className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 hover:bg-red-500 text-white flex items-center justify-center transition"
-                      >
-                        <X size={9} />
-                      </button>
-                    )}
 
                     {img.uploading && (
                       <div className="absolute inset-x-0 bottom-0 h-1 bg-stone-200">
@@ -336,6 +349,18 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
                       </div>
                     )}
                   </div>
+
+                  {/* delete button — always visible */}
+                  {img.url && (
+                    <button
+                      type="button"
+                      onClick={() => removeImage(img.id)}
+                      className="flex items-center justify-center w-full py-0.5 text-stone-400 hover:text-red-500 transition"
+                      title="מחק עמוד"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
 
                   {/* single-page indicator / toggle */}
                   {idx === 0 && img.url && (

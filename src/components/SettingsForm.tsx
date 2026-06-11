@@ -354,7 +354,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
           ref={previewRef}
           className="relative rounded-xl overflow-hidden mb-4 select-none"
           style={{
-            aspectRatio: '3/2',
+            aspectRatio: '2/3',
             background: 'linear-gradient(160deg, #4b5563 0%, #1f2937 55%, #374151 100%)',
             cursor: wmInteraction === 'drag' ? 'grabbing' : 'default',
           }}
