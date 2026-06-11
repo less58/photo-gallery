@@ -539,7 +539,7 @@ export default function GalleryClient({
               אין תמונות בסשן זה
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 items-start">
               {visiblePhotos.map((photo, i) => {
                 const status = selections[photo.id] ?? null
                 const inCompare = compareQueue.includes(photo.id)
@@ -551,18 +551,19 @@ export default function GalleryClient({
                     style={{ animationDelay: `${Math.min(i * 30, 400)}ms` }}
                   >
                     <div
-                      className="relative rounded-lg overflow-hidden bg-stone-900 aspect-[3/2]"
+                      className="relative rounded-lg overflow-hidden bg-stone-900"
                       onClick={() => setLightbox(photo)}
                     >
                       <Image
                         src={photo.thumbnail_url || photo.url}
                         alt={photo.name || ''}
-                        fill
+                        width={600}
+                        height={900}
                         unoptimized
                         priority={i < 6}
                         draggable={false}
                         onContextMenu={e => e.preventDefault()}
-                        className="object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
+                        className="w-full h-auto object-cover transition-transform duration-300 group-hover:scale-[1.02] select-none"
                       />
 
                       {/* Status badge */}
@@ -766,6 +767,11 @@ export default function GalleryClient({
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
+          {/* Close button — outside overflow-hidden container so it's never clipped */}
+          <button type="button" onClick={e => { e.stopPropagation(); setLightbox(null) }}
+            className="absolute top-4 right-4 z-20 w-9 h-9 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors">
+            <X size={20} />
+          </button>
           <div
             ref={lightboxContainerRef}
             className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center overflow-hidden"
@@ -857,11 +863,6 @@ export default function GalleryClient({
               })}
             </div>
 
-            {/* Close button */}
-            <button type="button" onClick={() => setLightbox(null)}
-              className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/60 hover:bg-black/80 text-white transition-colors">
-              <X size={20} />
-            </button>
           </div>
         </div>
       )}
