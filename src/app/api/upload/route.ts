@@ -73,9 +73,7 @@ export async function POST(req: NextRequest) {
             y: watermarkY - 0.5,
             opacity: watermarkOpacity,
             angle: watermarkRotation || undefined,
-            width: 0.9,
-            crop: 'fit',
-            flags: 'relative',
+            flags: 'relative.no_overflow',
           },
           { flags: 'layer_apply' }
         )

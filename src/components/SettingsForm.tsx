@@ -51,6 +51,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const [watermarkRotation, setWatermarkRotation] = useState(ph.watermark_rotation ?? 0)
   const [watermarkImageOpacity, setWatermarkImageOpacity] = useState(ph.watermark_image_opacity ?? 20)
   const [wmInteraction, setWmInteraction] = useState<'drag' | 'resize' | 'rotate' | null>(null)
+  const [previewContainerWidth, setPreviewContainerWidth] = useState(0)
   const [defaultInstructions, setDefaultInstructions] = useState(ph.default_instructions || '')
   const [senderDisplayName, setSenderDisplayName] = useState(ph.sender_display_name || ph.name || '')
   const [sendEmails, setSendEmails] = useState(ph.send_client_emails || false)
@@ -80,7 +81,10 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
   const previewRef = useRef<HTMLDivElement>(null)
   const wmStartRef = useRef<{ clientX: number; clientY: number; x: number; y: number; size: number } | null>(null)
 
-  const FONT_SCALE = 4 // Cloudinary px → preview px
+  // Scale font from Cloudinary px to CSS px so preview matches a 1080px-wide portrait photo.
+  // If preview is 320px wide: fontScale = 1080/320 ≈ 3.4 → preview text is correct size.
+  const PORTRAIT_REF_PX = 1080
+  const fontScale = previewContainerWidth > 0 ? PORTRAIT_REF_PX / previewContainerWidth : 3.5
 
   async function uploadLogo(file: File) {
     setUploadingLogo(true)
@@ -163,6 +167,15 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
     window.addEventListener('mouseup', onUp)
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
   }, [wmInteraction])
+
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setPreviewContainerWidth(el.offsetWidth))
+    ro.observe(el)
+    setPreviewContainerWidth(el.offsetWidth)
+    return () => ro.disconnect()
+  }, [])
 
   function startWmDrag(e: React.MouseEvent) {
     if (watermarkPosition === 'tiled') return
@@ -379,7 +392,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
                 left: `${watermarkX * 100}%`,
                 top: `${watermarkY * 100}%`,
                 transform: `translate(-50%,-50%) rotate(${watermarkRotation}deg)`,
-                fontSize: `${watermarkFontSize / FONT_SCALE}px`,
+                fontSize: `${watermarkFontSize / fontScale}px`,
                 color: watermarkColor,
                 opacity: watermarkOpacity / 100,
                 fontWeight: 'bold',
@@ -418,7 +431,7 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
             <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
               <div style={{
                 transform: 'rotate(-22deg)',
-                fontSize: `${watermarkFontSize / FONT_SCALE}px`,
+                fontSize: `${watermarkFontSize / fontScale}px`,
                 color: watermarkColor,
                 opacity: watermarkOpacity / 100,
                 fontWeight: 'bold',
@@ -438,6 +451,8 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
             </div>
           )}
         </div>
+
+        <p className="text-[10px] text-stone-400 -mt-2 mb-3 text-center">תצוגה מדויקת לפורטרט 1080px · אם הטקסט נחתך כאן — הוא יחָּתֵך גם בפועל</p>
 
         {/* ── Image mode controls ── */}
         {watermarkType === 'image' && (
@@ -528,6 +543,12 @@ export default function SettingsForm({ photographer: ph }: { photographer: Photo
               </p>
             )}
 
+            {watermarkText && watermarkPosition !== 'tiled' &&
+              watermarkFontSize * watermarkText.length * 0.6 > PORTRAIT_REF_PX * 0.88 && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                הגופן גדול מדי — הטקסט יִחָּתֵך בתמונות צרות. הקטן את הגודל.
+              </p>
+            )}
             <p className="text-[11px] text-stone-400 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
               סימן המים מוטמע בתמונה בעת ההעלאה — שינויים יחולו על תמונות חדשות בלבד
             </p>

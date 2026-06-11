@@ -208,9 +208,22 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
     setDropTargetIdx(null)
   }
 
-  function handleClose() {
+  async function handleClose() {
     cancelRef.current = true
     xhrRef.current?.abort()
+    const alreadyUploaded = images.filter(img => img.url)
+    if (alreadyUploaded.length > 0) {
+      if (confirm(`${alreadyUploaded.length} תמונות הועלו — לשמור ולסגור?`)) {
+        setSaving(true)
+        try {
+          await onSave(albumName, alreadyUploaded.map(img => img.url!), lastPageSingle)
+        } finally {
+          setSaving(false)
+        }
+      }
+      onClose()
+      return
+    }
     if (!isEdit && images.length > 0) {
       if (!confirm('לצאת בלי לשמור? האלבום לא יישמר')) return
     }
@@ -324,9 +337,12 @@ export default function AlbumImageEditor({ portfolioId, color, onSave, onClose, 
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={img.url} alt="" className="w-full h-full object-contain" draggable={false} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1 p-1">
                         {img.error
-                          ? <AlertCircle size={18} className="text-red-400" />
+                          ? <>
+                              <AlertCircle size={16} className="text-red-400 shrink-0" />
+                              <span className="text-[8px] text-red-400 text-center leading-tight break-words w-full px-0.5">{img.error}</span>
+                            </>
                           : <Loader2 size={18} className="animate-spin text-stone-300" />
                         }
                       </div>
