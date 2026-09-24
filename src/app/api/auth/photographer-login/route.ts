@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const normalizedEmail = String(email).trim().toLowerCase()
     const admin = createAdminClient()
+    let photographerId: string | undefined
 
     if (normalizedEmail !== SUPER_ADMIN_EMAIL) {
       const { data: existingPhotographer } = await admin
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
           redirectTo: `/auth/request-account?email=${encodeURIComponent(normalizedEmail)}${suffix}`,
         })
       }
+      photographerId = existingPhotographer.id
     }
 
     const supabase = await createClient()
@@ -54,13 +56,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ redirectTo: '/admin' })
     }
 
-    const { data: photographer } = await admin
-      .from('photographers')
-      .select('id')
-      .eq('email', data.user.email!)
-      .maybeSingle()
-
-    if (!photographer) {
+    if (!photographerId) {
       return Response.json({
         redirectTo: `/auth/request-account?email=${encodeURIComponent(data.user.email!)}`,
       })

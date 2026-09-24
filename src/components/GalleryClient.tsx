@@ -2,13 +2,12 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut, Download, LayoutGrid, Loader2, BookOpen } from 'lucide-react'
-import type { Session, Photo, Selection, SelectionStatus, Collage, Album } from '@/lib/types'
+import { Check, X, HelpCircle, GitCompare, ChevronDown, ChevronLeft, ChevronRight, Send, MessageCircle, ZoomIn, ZoomOut, Download, Loader2, BookOpen } from 'lucide-react'
+import type { Session, Photo, Selection, SelectionStatus, Album } from '@/lib/types'
 import ProgressBar from './ProgressBar'
 import CompareModal from './CompareModal'
 import NoteChat from './NoteChat'
 import { useToast } from './Toast'
-import { CollagePreview, downloadCollage } from './CollageEditor'
 import AlbumViewer from './AlbumViewer'
 
 type Props = {
@@ -25,7 +24,6 @@ type Props = {
   logoUrl: string | null
   showSendButton?: boolean
   isDone?: boolean
-  collages?: Collage[]
   albums?: Album[]
   allowAlbumDownload?: boolean
   portfolioCreatedAt?: string
@@ -39,14 +37,13 @@ const STATUS_COLOR: Record<SelectionStatus, string> = {
   maybe: '#F59E0B',
 }
 
-type GalleryTab = 'gallery' | 'selected' | 'collages' | 'albums'
+type GalleryTab = 'gallery' | 'selected' | 'albums'
 
 export default function GalleryClient({
   sessions, allPhotos, initialSelections, quota, color,
   coverUrl, instructions, photographerName, logoUrl, portfolioTitle, portfolioId,
   showSendButton = true,
   isDone = false,
-  collages = [],
   albums = [],
   allowAlbumDownload = false,
   portfolioCreatedAt,
@@ -90,18 +87,6 @@ export default function GalleryClient({
   const [viewingAlbum, setViewingAlbum] = useState<Album | null>(() =>
     isDone && albums.length === 1 ? albums[0] : null
   )
-  // Collage fullscreen viewer
-  const [viewingCollage, setViewingCollage] = useState<Collage | null>(null)
-
-  // Collage download state
-  const [downloadingCollageId, setDownloadingCollageId] = useState<string | null>(null)
-
-  async function handleDownloadCollage(collage: Collage) {
-    setDownloadingCollageId(collage.id)
-    try { await downloadCollage(collage) } catch { /* ignore */ }
-    setDownloadingCollageId(null)
-  }
-
   // Lightbox selection button hover state (inline style overrides Tailwind hover)
   const [hoveredLbBtn, setHoveredLbBtn] = useState<SelectionStatus | null>(null)
 
@@ -440,16 +425,6 @@ export default function GalleryClient({
                 <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{approvedCount}</span>
               )}
             </button>
-            {collages.length > 0 && (
-              <button
-                onClick={() => setTab('collages')}
-                className="shrink-0 px-3 py-1 rounded-md text-xs font-medium transition flex items-center gap-1"
-                style={tab === 'collages' ? { background: color, color: '#fff' } : { background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
-                <LayoutGrid size={11} />
-                קולאג׳ים
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white/20 text-[10px]">{collages.length}</span>
-              </button>
-            )}
             {albums.length > 0 && (
               <button
                 onClick={() => { setTab('albums'); setViewingAlbum(albums[0]) }}
@@ -674,43 +649,6 @@ export default function GalleryClient({
         </div>
       )}
 
-      {/* ── Collages tab ── */}
-      {tab === 'collages' && (
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          {collages.length === 0 ? (
-            <div className="text-center py-20 text-white/30">
-              <LayoutGrid size={36} strokeWidth={1.2} className="mx-auto mb-3 opacity-40" />
-              <p>אין קולאג׳ים עדיין</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {collages.map(collage => (
-                <div key={collage.id} className="rounded-2xl overflow-hidden bg-stone-900 border border-white/10">
-                  <CollagePreview collage={collage} className="w-full" onClick={() => setViewingCollage(collage)} />
-                  <div className="flex items-center justify-between px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-white">{collage.name}</p>
-                      <p className="text-xs text-white/40">{collage.cells.length} תמונות</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadCollage(collage)}
-                      disabled={downloadingCollageId === collage.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
-                      style={{ background: color, color: '#fff' }}
-                    >
-                      {downloadingCollageId === collage.id
-                        ? <><Loader2 size={12} className="animate-spin" /> מוריד...</>
-                        : <><Download size={12} /> הורד</>}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Albums tab ── */}
       {tab === 'albums' && (
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -771,32 +709,6 @@ export default function GalleryClient({
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Collage fullscreen viewer */}
-      {viewingCollage && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={() => setViewingCollage(null)}>
-          <div className="flex items-center justify-between px-6 py-3 shrink-0 bg-black/60" onClick={e => e.stopPropagation()}>
-            <p className="text-white font-medium">{viewingCollage.name}</p>
-            <div className="flex items-center gap-3">
-              <button type="button"
-                onClick={() => handleDownloadCollage(viewingCollage)}
-                disabled={downloadingCollageId === viewingCollage.id}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
-                style={{ background: color, color: '#fff' }}>
-                {downloadingCollageId === viewingCollage.id
-                  ? <><Loader2 size={12} className="animate-spin" /> מוריד...</>
-                  : <><Download size={12} /> הורד</>}
-              </button>
-              <button type="button" onClick={() => setViewingCollage(null)} className="text-white/50 hover:text-white p-1 transition">
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 flex items-center justify-center p-4 overflow-hidden" onClick={e => e.stopPropagation()}>
-            <CollagePreview collage={viewingCollage} className="max-h-full max-w-full rounded-xl shadow-2xl" style={{ width: 'min(90vw, 900px)' }} />
-          </div>
         </div>
       )}
 

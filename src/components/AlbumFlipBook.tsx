@@ -176,14 +176,14 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
   useEffect(() => {
     function calc() {
       const notesH = 48
-      const thumbnailH = THUMB_H + 32
-      const headerH = 56
-      const availH = window.innerHeight - headerH - thumbnailH - notesH - 40
-      const availW = window.innerWidth - 168
+      const thumbnailH = THUMB_H + 20
+      const headerH = 52
+      const availH = window.innerHeight - headerH - thumbnailH - notesH - 4
+      const availW = window.innerWidth
       const pageAspect = spreadAspect / 2
       const pageFromH = Math.floor(availH * pageAspect)
       const pageFromW = Math.floor(availW / 2)
-      const w = Math.max(170, Math.min(900, pageFromH, pageFromW))
+      const w = Math.max(170, Math.min(1400, pageFromH, pageFromW))
       setPageW(w)
       setPageH(Math.floor(w / pageAspect))
     }
@@ -267,22 +267,18 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
   }
 
   async function downloadAlbum() {
-    if (downloading || !album.image_urls) return
+    if (downloading || !album.id) return
     setDownloading(true)
     try {
-      const { default: JSZip } = await import('jszip')
-      const zip = new JSZip()
-      for (let i = 0; i < album.image_urls.length; i++) {
-        const res = await fetch(album.image_urls[i])
-        const blob = await res.blob()
-        const ext = blob.type.split('/')[1]?.split('+')[0] || 'jpg'
-        zip.file(`${String(i + 1).padStart(3, '0')}.${ext}`, blob)
-      }
-      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const res = await fetch(`/api/download-album?id=${album.id}`)
+      if (!res.ok) throw new Error('שגיאה בהורדה')
+      const blob = await res.blob()
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(zipBlob)
+      a.href = URL.createObjectURL(blob)
       a.download = `${album.name}.zip`
+      document.body.appendChild(a)
       a.click()
+      document.body.removeChild(a)
       URL.revokeObjectURL(a.href)
     } catch { /* ignore */ }
     setDownloading(false)
@@ -332,12 +328,12 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
       </div>
 
       {/* Book area */}
-      <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden px-4 sm:px-20 py-5" dir="ltr">
+      <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden py-1" dir="ltr">
         <button
           type="button"
           onClick={goNext}
           disabled={currentImageIndex >= total - 1}
-          className="absolute left-3 sm:left-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
+          className="absolute left-1 sm:left-3 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
         >
           <ChevronLeft size={26} />
         </button>
@@ -350,9 +346,9 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
               height={pageH}
               size="fixed"
               minWidth={160}
-              maxWidth={900}
+              maxWidth={1400}
               minHeight={220}
-              maxHeight={900}
+              maxHeight={1400}
               usePortrait={false}
               showCover={true}
               flippingTime={850}
@@ -392,14 +388,14 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
           type="button"
           onClick={goPrev}
           disabled={currentImageIndex <= 0}
-          className="absolute right-3 sm:right-6 z-20 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
+          className="absolute right-1 sm:right-3 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition disabled:opacity-20 disabled:cursor-default"
         >
           <ChevronRight size={26} />
         </button>
       </div>
 
       {/* Notes bar - fixed height so the book doesn't shift when a note appears/disappears */}
-      <div className="shrink-0 px-10 sm:px-16 h-12 flex items-center" dir="rtl">
+      <div className="shrink-0 px-6 sm:px-12 h-12 flex items-center" dir="rtl">
         {noteEditIndex === currentImageIndex ? (
           <div
             className="flex items-center gap-2 rounded-xl px-3 py-2 border w-full"
@@ -460,7 +456,7 @@ export default function AlbumFlipBook({ album, onClose, allowDownload = false, i
       </div>
 
       {/* Thumbnail strip */}
-      <div className="shrink-0 bg-black/50 px-10 sm:px-16 py-3" dir="rtl">
+      <div className="shrink-0 bg-black/50 px-6 sm:px-12 py-2" dir="rtl">
         <div
           ref={thumbStripRef}
           className="flex items-center gap-2 overflow-x-auto overscroll-x-contain pb-1"

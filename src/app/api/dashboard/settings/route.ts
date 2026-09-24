@@ -14,7 +14,6 @@ const OPTIONAL_COLUMNS = [
   'resend_api_key', 'sender_email', 'sender_display_name',
   'default_instructions', 'send_client_emails',
   'receive_selection_emails',
-  'enable_collages',
   'allow_album_download',
 ]
 
@@ -57,7 +56,6 @@ export async function PATCH(req: NextRequest) {
   if (body.gmailAppPassword !== undefined)   update.gmail_app_password = body.gmailAppPassword
   if (body.senderDisplayName !== undefined)       update.sender_display_name = body.senderDisplayName
   if (body.receiveSelectionEmails !== undefined)  update.receive_selection_emails = body.receiveSelectionEmails
-  if (body.enableCollages !== undefined)          update.enable_collages = body.enableCollages
   if (body.allowAlbumDownload !== undefined)      update.allow_album_download = body.allowAlbumDownload
 
   // Try the full update; if a column is missing, remove it and retry

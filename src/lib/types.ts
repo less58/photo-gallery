@@ -56,23 +56,6 @@ export type BrandingContext = {
   photographerName: string
 }
 
-export type CollageCell = {
-  x: number       // 0-1 normalized
-  y: number
-  w: number
-  h: number
-  photo_url: string | null
-  pan_x: number   // -1 to 1 (left to right)
-  pan_y: number   // -1 to 1 (top to bottom)
-}
-
-export type CollageTemplate = {
-  id: string
-  name: string
-  cells: Pick<CollageCell, 'x' | 'y' | 'w' | 'h'>[]
-  is_preset?: boolean
-}
-
 export type Album = {
   id: string
   portfolio_id: string
@@ -82,17 +65,5 @@ export type Album = {
   page_count: number
   last_page_single: boolean | null
   spread_notes: Record<string, string> | null
-  created_at: string
-}
-
-export type Collage = {
-  id: string
-  portfolio_id: string
-  name: string
-  cells: CollageCell[]
-  border_enabled: boolean
-  border_color: string
-  border_width: number
-  bg_color: string
   created_at: string
 }

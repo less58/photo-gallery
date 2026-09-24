@@ -3,9 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Square, LayoutGrid, CheckSquare } from 'lucide-react'
+import { ArrowRight, Upload, Plus, Download, Check, HelpCircle, FolderOpen, ImageIcon, Copy, CheckCheck, Trash2, X, Mail, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Square, CheckSquare } from 'lucide-react'
 import NoteChat from './NoteChat'
-import CollageTab from './CollageTab'
 import AlbumTab from './AlbumTab'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
@@ -20,7 +19,6 @@ type Photographer = {
   watermark_x?: number | null; watermark_y?: number | null
   watermark_rotation?: number | null; watermark_image_opacity?: number | null
   send_client_emails: boolean
-  enable_collages?: boolean | null
   email_subject?: string | null
   email_body?: string | null
   email_album_subject?: string | null
@@ -34,7 +32,7 @@ type Props = {
   photographer: Photographer
   isFrozen?: boolean
 }
-type Tab = 'photos' | 'selected' | 'notes' | 'collages' | 'albums'
+type Tab = 'photos' | 'selected' | 'notes' | 'albums'
 
 const STATUS_COLOR: Record<string, string> = {
   approved: '#22C55E',
@@ -1050,7 +1048,6 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
           ['photos', 'תמונות'],
           ['selected', 'נבחרו'],
           ['notes', 'הודעות'],
-          ...(photographer.enable_collages !== false ? [['collages', 'קולאג׳ים']] : []),
           ['albums', 'אלבומים'],
         ] as [Tab, string][]).map(([t, label]) => (
           <button key={t} type="button" onClick={() => setTab(t)}
@@ -1063,7 +1060,6 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
                 style={{ background: color }}>{approvedPhotos.length}</span>
             )}
             {t === 'notes' && <MessageCircle size={12} className="inline mr-1 mb-0.5" />}
-            {t === 'collages' && <LayoutGrid size={12} className="inline mr-1 mb-0.5" />}
             {t === 'albums' && <Square size={12} className="inline mr-1 mb-0.5" />}
             {label}
           </button>
@@ -1423,10 +1419,6 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         </div>
       )}
 
-      {/* ── Collages tab ── */}
-      {tab === 'collages' && (
-        <CollageTab portfolioId={portfolio.id} color={color} />
-      )}
 
       {/* ── Albums tab ── */}
       {tab === 'albums' && (

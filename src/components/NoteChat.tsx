@@ -60,11 +60,14 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
     }
   }, [notes.length, loading, fetchUrl])
 
-  // Focus textarea on open
+  // Focus textarea on open, and again once the first load of notes has rendered
   useEffect(() => {
     const t = setTimeout(() => textareaRef.current?.focus(), 60)
     return () => clearTimeout(t)
   }, [])
+  useEffect(() => {
+    if (!loading) textareaRef.current?.focus()
+  }, [loading])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -94,7 +97,10 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
           return [...prev, data as Note]
         })
         setMessage('')
-        if (textareaRef.current) textareaRef.current.style.height = 'auto'
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto'
+          textareaRef.current.focus()
+        }
         onSend?.()
       }
     } finally {
@@ -160,7 +166,6 @@ export default function NoteChat({ fetchUrl, postUrl, mySender, brandColor, onSe
             maxHeight: '120px',
           }}
           rows={1}
-          disabled={sending}
           dir="auto"
         />
         <button

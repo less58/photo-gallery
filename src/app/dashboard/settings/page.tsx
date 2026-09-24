@@ -1,19 +1,11 @@
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getPhotographerByEmail } from '@/lib/auth/getPhotographer'
 import SettingsForm from '@/components/SettingsForm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const admin = createAdminClient()
-  const { data: photographer } = await admin
-    .from('photographers')
-    .select('*')
-    .eq('email', user!.email!)
-    .maybeSingle()
+  const user = await getSessionUser()
+  const photographer = await getPhotographerByEmail(user!.email!)
 
   return (
     <div className="max-w-lg">

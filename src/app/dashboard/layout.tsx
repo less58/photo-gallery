@@ -1,17 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getPhotographerByEmail } from '@/lib/auth/getPhotographer'
 import { redirect } from 'next/navigation'
 import SidebarNav from '@/components/SidebarNav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/auth/login')
 
-  const { data: photographer } = await supabase
-    .from('photographers')
-    .select('id, brand_color, logo_url, name, is_frozen')
-    .eq('email', user.email!)
-    .maybeSingle()
+  const photographer = await getPhotographerByEmail(user.email!)
 
   if (!photographer) {
     redirect(`/auth/request-account?email=${encodeURIComponent(user.email!)}`)

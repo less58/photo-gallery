@@ -10,13 +10,18 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const { data: portfolio, error } = await supabase
-    .from('portfolios')
-    .select('*, photographer:photographers(*)')
-    .eq('id', id)
-    .single()
+  const [
+    { data: portfolio, error },
+    { data: sessions, error: sessErr },
+    { data: selections },
+  ] = await Promise.all([
+    supabase.from('portfolios').select('*, photographer:photographers(*)').eq('id', id).single(),
+    admin.from('sessions').select('*, photos(*)').eq('portfolio_id', id).order('sort_order'),
+    admin.from('selections').select('photo_id, status').eq('portfolio_id', id),
+  ])
 
   if (error || !portfolio) notFound()
+  if (sessErr) console.error('[portfolio page] sessions error:', sessErr.message)
 
   // Generate magic_token for older portfolios that don't have one yet
   if (!portfolio.magic_token) {
@@ -24,19 +29,6 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
     await admin.from('portfolios').update({ magic_token: token }).eq('id', id)
     portfolio.magic_token = token
   }
-
-  const { data: sessions, error: sessErr } = await admin
-    .from('sessions')
-    .select('*, photos(*)')
-    .eq('portfolio_id', id)
-    .order('sort_order')
-
-  if (sessErr) console.error('[portfolio page] sessions error:', sessErr.message)
-
-  const { data: selections } = await admin
-    .from('selections')
-    .select('photo_id, status')
-    .eq('portfolio_id', id)
 
   const photographer = portfolio.photographer as Record<string, unknown>
 
@@ -64,7 +56,6 @@ export default async function PortfolioDetailPage(props: PageProps<'/dashboard/p
         watermark_rotation: (photographer.watermark_rotation as number) ?? 0,
         watermark_image_opacity: (photographer.watermark_image_opacity as number) ?? 20,
         send_client_emails: (photographer.send_client_emails as boolean) ?? false,
-        enable_collages: (photographer.enable_collages as boolean) ?? true,
         email_subject: (photographer.email_subject as string) ?? null,
         email_body: (photographer.email_body as string) ?? null,
         email_album_subject: (photographer.email_album_subject as string) ?? null,

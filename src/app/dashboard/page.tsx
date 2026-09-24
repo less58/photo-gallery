@@ -1,20 +1,14 @@
-import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getPhotographerByEmail } from '@/lib/auth/getPhotographer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import PortfolioList from '@/components/PortfolioList'
 
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
+  const photographer = user ? await getPhotographerByEmail(user.email!) : null
 
   const admin = createAdminClient()
-
-  const { data: photographer } = await admin
-    .from('photographers')
-    .select('id, name, brand_color')
-    .eq('email', user!.email!)
-    .maybeSingle()
 
   const { data: portfolios } = photographer
     ? await admin

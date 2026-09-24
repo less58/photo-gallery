@@ -37,7 +37,6 @@ export default function AuthLoginPage() {
       }
 
       router.push(data.redirectTo || '/dashboard')
-      router.refresh()
     } catch (err) {
       console.error('Login error:', err)
       setError('החיבור לשרת נכשל. נסי שוב בעוד רגע.')

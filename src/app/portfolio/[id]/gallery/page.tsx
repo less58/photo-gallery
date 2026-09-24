@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import GalleryClient from '@/components/GalleryClient'
-import type { Photo, Collage, Album } from '@/lib/types'
+import type { Photo, Album } from '@/lib/types'
 import { encryptUrl } from '@/lib/imageToken'
 
 export const dynamic = 'force-dynamic'
@@ -41,12 +41,6 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
     .select('*')
     .eq('portfolio_id', id)
 
-  const { data: collagesData } = await admin
-    .from('collages')
-    .select('*')
-    .eq('portfolio_id', id)
-    .order('created_at', { ascending: false })
-
   const { data: albumsData } = await admin
     .from('albums')
     .select('*')
@@ -83,14 +77,6 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
     pdf_url: proxy(album.pdf_url),
   }))
 
-  const proxiedCollages = ((collagesData || []) as Collage[]).map(collage => ({
-    ...collage,
-    cells: collage.cells.map(cell => ({
-      ...cell,
-      photo_url: cell.photo_url ? proxy(cell.photo_url) : null,
-    })),
-  }))
-
   return (
     <GalleryClient
       sessions={allSessions}
@@ -106,7 +92,6 @@ export default async function GalleryPage(props: PageProps<'/portfolio/[id]/gall
       logoUrl={proxy(ph.logo_url as string)}
       showSendButton={ph.receive_selection_emails !== false}
       isDone={(portfolio.is_done as boolean) ?? false}
-      collages={proxiedCollages}
       albums={proxiedAlbums}
       allowAlbumDownload={(ph.allow_album_download as boolean) === true}
       portfolioCreatedAt={String(portfolio.created_at ?? '')}

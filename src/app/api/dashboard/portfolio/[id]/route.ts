@@ -33,19 +33,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const admin = createAdminClient()
 
-  const { data: photographer } = await admin
-    .from('photographers')
-    .select('id')
-    .eq('email', user.email!)
-    .maybeSingle()
+  const [{ data: photographer }, { data: portfolio }] = await Promise.all([
+    admin.from('photographers').select('id').eq('email', user.email!).maybeSingle(),
+    admin.from('portfolios').select('photographer_id').eq('id', id).maybeSingle(),
+  ])
 
   if (!photographer) return Response.json({ error: 'לא נמצאת' }, { status: 403 })
-
-  const { data: portfolio } = await admin
-    .from('portfolios')
-    .select('photographer_id')
-    .eq('id', id)
-    .maybeSingle()
 
   if (!portfolio || portfolio.photographer_id !== photographer.id) {
     return Response.json({ error: 'אין הרשאה' }, { status: 403 })
