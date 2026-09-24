@@ -15,6 +15,7 @@ const OPTIONAL_COLUMNS = [
   'default_instructions', 'send_client_emails',
   'receive_selection_emails',
   'allow_album_download',
+  'calendar_category_colors',
 ]
 
 export async function PATCH(req: NextRequest) {
@@ -57,6 +58,7 @@ export async function PATCH(req: NextRequest) {
   if (body.senderDisplayName !== undefined)       update.sender_display_name = body.senderDisplayName
   if (body.receiveSelectionEmails !== undefined)  update.receive_selection_emails = body.receiveSelectionEmails
   if (body.allowAlbumDownload !== undefined)      update.allow_album_download = body.allowAlbumDownload
+  if (body.calendarCategoryColors !== undefined)  update.calendar_category_colors = body.calendarCategoryColors
 
   // Try the full update; if a column is missing, remove it and retry
   let current = { ...update }
