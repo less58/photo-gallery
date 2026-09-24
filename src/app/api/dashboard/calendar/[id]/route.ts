@@ -4,6 +4,13 @@ import { NextRequest } from 'next/server'
 
 const CATEGORIES = ['shoot', 'delivery', 'meeting', 'personal', 'other']
 
+function friendlyDbError(error: { code?: string; message: string }): string {
+  if (error.code === '42P01') {
+    return 'טבלת היומן עדיין לא נוצרה ב-Supabase — צריך להריץ את הקובץ supabase-calendar-migration.sql ב-SQL editor של Supabase.'
+  }
+  return error.message
+}
+
 async function requirePhotographerId(): Promise<string | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -47,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select()
     .maybeSingle()
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) return Response.json({ error: friendlyDbError(error) }, { status: 500 })
   if (!data) return Response.json({ error: 'אירוע לא נמצא' }, { status: 404 })
   return Response.json(data)
 }
@@ -64,6 +71,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .eq('id', id)
     .eq('photographer_id', photographerId)
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) return Response.json({ error: friendlyDbError(error) }, { status: 500 })
   return Response.json({ ok: true })
 }
