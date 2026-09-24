@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Home, MessageCircle, Archive, Settings, Plus, LogOut, Snowflake } from 'lucide-react'
+import { Home, MessageCircle, Archive, Settings, Plus, LogOut, Snowflake, CalendarDays } from 'lucide-react'
 
 type Props = {
   brand: string
@@ -32,7 +32,7 @@ export default function SidebarNav({ brand, isFrozen, name, logoUrl }: Props) {
     fetchUnread()
     const interval = setInterval(fetchUnread, 15000)
     return () => clearInterval(interval)
-  }, [pathname, fetchUnread])
+  }, [fetchUnread])
 
   useEffect(() => {
     window.addEventListener('messages-read', fetchUnread)
@@ -96,6 +96,7 @@ export default function SidebarNav({ brand, isFrozen, name, logoUrl }: Props) {
       {/* Nav items */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         <NavItem href="/dashboard" label="בית — תיקים" icon={<Home size={16} />} exact />
+        <NavItem href="/dashboard/calendar" label="לוח שנה" icon={<CalendarDays size={16} />} />
         <NavItem href="/dashboard/messages" label="צאט" icon={<MessageCircle size={16} />} badge={unread} />
         <NavItem href="/dashboard/archive" label="קבצי תמונות נבחרות" icon={<Archive size={16} />} />
         <NavItem href="/dashboard/settings" label="הגדרות" icon={<Settings size={16} />} />

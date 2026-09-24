@@ -56,6 +56,20 @@ export type BrandingContext = {
   photographerName: string
 }
 
+export type CalendarCategory = 'shoot' | 'delivery' | 'meeting' | 'personal' | 'other'
+
+export type CalendarEvent = {
+  id: string
+  photographer_id: string
+  event_date: string
+  event_time: string | null
+  title: string
+  notes: string | null
+  category: CalendarCategory
+  created_at: string
+  updated_at: string
+}
+
 export type Album = {
   id: string
   portfolio_id: string
