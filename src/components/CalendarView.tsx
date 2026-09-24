@@ -18,11 +18,10 @@ const CATEGORIES: { value: CalendarCategory; label: string; color: string }[] = 
 
 const REMINDER_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'ללא תזכורת' },
-  { value: '30', label: 'חצי שעה לפני' },
-  { value: '60', label: 'שעה לפני' },
   { value: '1440', label: 'יום לפני' },
   { value: '2880', label: 'יומיים לפני' },
   { value: '10080', label: 'שבוע לפני' },
+  { value: '43200', label: 'חודש לפני' },
 ]
 
 function categoryMeta(category: string) {

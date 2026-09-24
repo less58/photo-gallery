@@ -4,7 +4,7 @@ import { NextRequest } from 'next/server'
 
 const CATEGORIES = ['shoot', 'delivery', 'meeting', 'personal', 'other']
 const KINDS = ['event', 'task']
-const REMINDER_OPTIONS = [30, 60, 1440, 2880, 10080]
+const REMINDER_OPTIONS = [1440, 2880, 10080, 43200]
 
 function friendlyDbError(error: { code?: string; message: string }): string {
   if (error.code === '42P01') {

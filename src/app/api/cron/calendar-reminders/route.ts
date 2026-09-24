@@ -18,9 +18,10 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient()
   const now = new Date()
 
-  // Bound the query to a sensible window instead of scanning the whole table
+  // Bound the query to a sensible window instead of scanning the whole table.
+  // Reminders go up to a month before the event, so the window must reach that far.
   const from = toISODate(new Date(now.getTime() - 24 * 3600 * 1000))
-  const to = toISODate(new Date(now.getTime() + 8 * 24 * 3600 * 1000))
+  const to = toISODate(new Date(now.getTime() + 32 * 24 * 3600 * 1000))
 
   const { data: candidates, error } = await admin
     .from('calendar_events')
