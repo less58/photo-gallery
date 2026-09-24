@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronLeft, Plus, X, Trash2, Loader2, Clock, CalendarDays, Bell, CheckSquare, Square, Palette } from 'lucide-react'
+import { ChevronRight, ChevronLeft, ArrowRight, Plus, X, Trash2, Loader2, Clock, CalendarDays, Bell, CheckSquare, Square, Palette } from 'lucide-react'
 import type { CalendarEvent, CalendarCategory, CalendarKind } from '@/lib/types'
 import { hebrewDayMonthLabel, hebrewFullLabel, hebrewHoliday } from '@/lib/hebrewDate'
 import { useToast } from './Toast'
@@ -355,17 +355,43 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
   const [notes, setNotes] = useState('')
   const [reminder, setReminder] = useState('')
   const [saving, setSaving] = useState(false)
+  const [snapshot, setSnapshot] = useState<string | null>(null)
   const holiday = hebrewHoliday(date)
 
+  function fieldsKey(v: { title: string; kind: string; category: string; time: string; notes: string; reminder: string }) {
+    return JSON.stringify(v)
+  }
+  function isDirty() {
+    if (snapshot === null) return false
+    return fieldsKey({ title, kind, category, time, notes, reminder }) !== snapshot
+  }
+  function confirmDiscard() {
+    if (!isDirty()) return true
+    return confirm('יש שינויים שלא נשמרו. לצאת בלי לשמור?')
+  }
+
   function openChooser() {
-    setEditing('choosing'); setTitle(''); setKind('event'); setCategory('shoot'); setTime(''); setNotes(''); setReminder('')
+    setEditing('choosing')
   }
   function chooseKind(k: CalendarKind) {
-    setKind(k); setEditing('new')
+    setTitle(''); setKind(k); setCategory('shoot'); setTime(''); setNotes(''); setReminder('')
+    setSnapshot(fieldsKey({ title: '', kind: k, category: 'shoot', time: '', notes: '', reminder: '' }))
+    setEditing('new')
   }
   function startEdit(ev: CalendarEvent) {
-    setEditing(ev); setTitle(ev.title); setKind(ev.kind); setCategory(ev.category)
-    setTime(ev.event_time || ''); setNotes(ev.notes || ''); setReminder(ev.reminder_minutes_before ? String(ev.reminder_minutes_before) : '')
+    const t = ev.title, k = ev.kind, c = ev.category, tm = ev.event_time || '', n = ev.notes || ''
+    const r = ev.reminder_minutes_before ? String(ev.reminder_minutes_before) : ''
+    setEditing(ev); setTitle(t); setKind(k); setCategory(c); setTime(tm); setNotes(n); setReminder(r)
+    setSnapshot(fieldsKey({ title: t, kind: k, category: c, time: tm, notes: n, reminder: r }))
+  }
+  function goBack() {
+    if (!confirmDiscard()) return
+    setEditing(editing === 'new' ? 'choosing' : null)
+  }
+  function attemptClose() {
+    const inForm = editing !== null && editing !== 'choosing'
+    if (inForm && !confirmDiscard()) return
+    onClose()
   }
 
   async function save() {
@@ -385,8 +411,9 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
       })
       if (!res.ok) { const d = await res.json(); toast(d.error || 'שגיאה בשמירה', 'error'); return }
       toast(isNew ? 'נוסף' : 'עודכן')
-      setEditing(null)
       onChanged()
+      if (isNew) onClose()
+      else setEditing(null)
     } catch { toast('שגיאה בשמירה', 'error') }
     finally { setSaving(false) }
   }
@@ -414,7 +441,7 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4" onClick={attemptClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
           <div className="flex items-center gap-2">
@@ -427,7 +454,7 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
               {holiday && <p className="text-xs font-semibold text-rose-600 mt-0.5">{holiday}</p>}
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-stone-400 hover:text-stone-600 p-1">
+          <button type="button" onClick={attemptClose} className="text-stone-400 hover:text-stone-600 p-1">
             <X size={18} />
           </button>
         </div>
@@ -515,11 +542,16 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
 
           {editing !== null && editing !== 'choosing' && (
             <div className="space-y-3 rounded-xl border border-stone-200 p-3">
-              <p className="text-xs font-medium text-stone-400">
-                {editing === 'new'
-                  ? (kind === 'task' ? 'משימה חדשה' : 'אירוע חדש')
-                  : (kind === 'task' ? 'עריכת משימה' : 'עריכת אירוע')}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={goBack} className="text-stone-400 hover:text-stone-600 p-0.5 -m-0.5" aria-label="חזרה">
+                  <ArrowRight size={14} />
+                </button>
+                <p className="text-xs font-medium text-stone-400">
+                  {editing === 'new'
+                    ? (kind === 'task' ? 'משימה חדשה' : 'אירוע חדש')
+                    : (kind === 'task' ? 'עריכת משימה' : 'עריכת אירוע')}
+                </p>
+              </div>
               <input
                 autoFocus
                 value={title}
@@ -547,7 +579,7 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
                 className="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-200 transition"
               />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setEditing(null)}
+                <button type="button" onClick={goBack}
                   className="flex-1 py-2 rounded-lg border border-stone-200 text-stone-500 text-sm font-medium">
                   ביטול
                 </button>
