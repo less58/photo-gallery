@@ -57,6 +57,7 @@ export type BrandingContext = {
 }
 
 export type CalendarCategory = 'shoot' | 'delivery' | 'meeting' | 'personal' | 'other'
+export type CalendarKind = 'event' | 'task'
 
 export type CalendarEvent = {
   id: string
@@ -66,6 +67,10 @@ export type CalendarEvent = {
   title: string
   notes: string | null
   category: CalendarCategory
+  kind: CalendarKind
+  completed: boolean
+  reminder_minutes_before: number | null
+  reminder_sent: boolean
   created_at: string
   updated_at: string
 }

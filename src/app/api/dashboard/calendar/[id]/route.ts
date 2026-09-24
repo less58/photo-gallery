@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest } from 'next/server'
 
 const CATEGORIES = ['shoot', 'delivery', 'meeting', 'personal', 'other']
+const KINDS = ['event', 'task']
+const REMINDER_OPTIONS = [30, 60, 1440, 2880, 10080]
 
 function friendlyDbError(error: { code?: string; message: string }): string {
   if (error.code === '42P01') {
@@ -34,8 +36,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json()
 
   const allowed: Record<string, unknown> = {}
-  if ('eventDate' in body) allowed.event_date = String(body.eventDate)
-  if ('eventTime' in body) allowed.event_time = body.eventTime ? String(body.eventTime) : null
+  let rearmReminder = false
+  if ('eventDate' in body) { allowed.event_date = String(body.eventDate); rearmReminder = true }
+  if ('eventTime' in body) { allowed.event_time = body.eventTime ? String(body.eventTime) : null; rearmReminder = true }
   if ('title' in body) {
     const t = String(body.title).trim()
     if (!t) return Response.json({ error: 'כותרת לא יכולה להיות ריקה' }, { status: 400 })
@@ -43,6 +46,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if ('notes' in body) allowed.notes = body.notes ? String(body.notes).trim() || null : null
   if ('category' in body) allowed.category = CATEGORIES.includes(body.category) ? body.category : 'other'
+  if ('kind' in body) allowed.kind = KINDS.includes(body.kind) ? body.kind : 'event'
+  if ('completed' in body) allowed.completed = !!body.completed
+  if ('reminderMinutesBefore' in body) {
+    allowed.reminder_minutes_before = REMINDER_OPTIONS.includes(Number(body.reminderMinutesBefore))
+      ? Number(body.reminderMinutesBefore)
+      : null
+    rearmReminder = true
+  }
+  if (rearmReminder) allowed.reminder_sent = false
   allowed.updated_at = new Date().toISOString()
 
   const admin = createAdminClient()

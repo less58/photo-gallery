@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest } from 'next/server'
 
 const CATEGORIES = ['shoot', 'delivery', 'meeting', 'personal', 'other']
+const KINDS = ['event', 'task']
+const REMINDER_OPTIONS = [30, 60, 1440, 2880, 10080]
 
 function friendlyDbError(error: { code?: string; message: string }): string {
   if (error.code === '42P01') {
@@ -57,15 +59,22 @@ export async function POST(req: NextRequest) {
   const eventDate = String(body.eventDate || '')
   const title = String(body.title || '').trim()
   const category = CATEGORIES.includes(body.category) ? body.category : 'other'
+  const kind = KINDS.includes(body.kind) ? body.kind : 'event'
   const eventTime = body.eventTime ? String(body.eventTime) : null
   const notes = body.notes ? String(body.notes).trim() || null : null
+  const reminderMinutesBefore = REMINDER_OPTIONS.includes(Number(body.reminderMinutesBefore))
+    ? Number(body.reminderMinutesBefore)
+    : null
 
   if (!eventDate || !title) return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
 
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('calendar_events')
-    .insert({ photographer_id: photographerId, event_date: eventDate, event_time: eventTime, title, notes, category })
+    .insert({
+      photographer_id: photographerId, event_date: eventDate, event_time: eventTime,
+      title, notes, category, kind, reminder_minutes_before: reminderMinutesBefore,
+    })
     .select()
     .single()
 

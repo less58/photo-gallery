@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronLeft, Plus, X, Trash2, Loader2, Clock, CalendarDays } from 'lucide-react'
-import type { CalendarEvent, CalendarCategory } from '@/lib/types'
-import { hebrewDayMonthLabel, hebrewFullLabel, hebrewMonthOf } from '@/lib/hebrewDate'
+import { ChevronRight, ChevronLeft, Plus, X, Trash2, Loader2, Clock, CalendarDays, Bell, CheckSquare, Square } from 'lucide-react'
+import type { CalendarEvent, CalendarCategory, CalendarKind } from '@/lib/types'
+import { hebrewDayMonthLabel, hebrewFullLabel, hebrewHoliday } from '@/lib/hebrewDate'
 import { useToast } from './Toast'
 
 const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
@@ -14,6 +14,15 @@ const CATEGORIES: { value: CalendarCategory; label: string; color: string }[] = 
   { value: 'meeting', label: 'פגישה', color: '#8B5CF6' },
   { value: 'personal', label: 'אישי', color: '#F59E0B' },
   { value: 'other', label: 'אחר', color: '#6B7280' },
+]
+
+const REMINDER_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'ללא תזכורת' },
+  { value: '30', label: 'חצי שעה לפני' },
+  { value: '60', label: 'שעה לפני' },
+  { value: '1440', label: 'יום לפני' },
+  { value: '2880', label: 'יומיים לפני' },
+  { value: '10080', label: 'שבוע לפני' },
 ]
 
 function categoryMeta(category: string) {
@@ -39,6 +48,7 @@ export default function CalendarView({ color }: { color: string }) {
   const [events, setEvents] = useState<Record<string, CalendarEvent[]>>({})
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [quickAdd, setQuickAdd] = useState(false)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
 
   const minMonth = useMemo(() => new Date(today.getFullYear(), today.getMonth(), 1), [today])
@@ -104,6 +114,11 @@ export default function CalendarView({ color }: { color: string }) {
     })
   }
 
+  function openDay(date: Date, forceNew: boolean) {
+    setSelectedDate(date)
+    setQuickAdd(forceNew)
+  }
+
   return (
     <div dir="rtl">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -156,49 +171,70 @@ export default function CalendarView({ color }: { color: string }) {
 
       {/* Grid */}
       <div className="grid grid-cols-7 gap-1.5">
-        {gridDays.map((date, i) => {
+        {gridDays.map(date => {
           const inMonth = date.getMonth() === currentMonth.getMonth()
           const isToday = sameDay(date, today)
-          const isWeekend = date.getDay() === 5 || date.getDay() === 6
+          const isShabbat = date.getDay() === 6
           const key = toISODate(date)
           const dayEvents = (events[key] || []).filter(ev => !hiddenCategories.has(ev.category))
-          const prevDate = i > 0 ? gridDays[i - 1] : null
-          const isHebrewMonthStart = !prevDate || hebrewMonthOf(date) !== hebrewMonthOf(prevDate)
+          const holiday = hebrewHoliday(date)
 
           return (
-            <button
+            <div
               key={key}
-              type="button"
-              onClick={() => setSelectedDate(date)}
-              className="rounded-xl border text-right p-2 flex flex-col transition-colors hover:border-stone-300"
+              role="button"
+              tabIndex={0}
+              onClick={() => openDay(date, false)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openDay(date, false) }}
+              className="relative rounded-xl border text-right p-2 flex flex-col cursor-pointer transition-colors hover:border-stone-300 group"
               style={{
-                minHeight: 92,
-                background: isWeekend ? '#FAFAF9' : '#fff',
+                minHeight: 96,
+                background: isToday ? color + '10' : isShabbat ? '#FAFAF9' : '#fff',
                 borderColor: isToday ? color : '#E7E5E4',
                 borderWidth: isToday ? 2 : 1,
                 opacity: inMonth ? 1 : 0.4,
               }}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] text-stone-400 truncate">
-                  {isHebrewMonthStart ? hebrewDayMonthLabel(date) : hebrewDayMonthLabel(date).split(' ')[0]}
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); openDay(date, true) }}
+                className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center text-stone-300 opacity-0 group-hover:opacity-100 hover:!text-white hover:bg-[var(--brand)] transition-all"
+                style={{ '--brand': color } as React.CSSProperties}
+                aria-label="הוספת אירוע"
+              >
+                <Plus size={12} />
+              </button>
+
+              <div className="flex items-start justify-between mb-1 gap-1">
+                <span className="text-[10px] text-stone-400 truncate leading-tight">
+                  {hebrewDayMonthLabel(date)}
                 </span>
-                <span className="text-sm font-semibold" style={{ color: isToday ? color : '#44403C' }}>
+                <span className="text-sm font-semibold shrink-0" style={{ color: isToday ? color : '#44403C' }}>
                   {date.getDate()}
                 </span>
               </div>
+
+              {holiday && (
+                <p className="text-[10px] font-semibold text-rose-600 truncate mb-0.5">{holiday}</p>
+              )}
+
               <div className="flex-1 space-y-0.5 overflow-hidden">
-                {dayEvents.slice(0, 3).map(ev => (
+                {dayEvents.slice(0, holiday ? 2 : 3).map(ev => (
                   <div key={ev.id} className="text-[10px] px-1.5 py-0.5 rounded truncate text-right"
-                    style={{ background: categoryMeta(ev.category).color + '18', color: categoryMeta(ev.category).color }}>
+                    style={{
+                      background: categoryMeta(ev.category).color + '18',
+                      color: categoryMeta(ev.category).color,
+                      textDecoration: ev.completed ? 'line-through' : 'none',
+                      opacity: ev.completed ? 0.6 : 1,
+                    }}>
                     {ev.title}
                   </div>
                 ))}
-                {dayEvents.length > 3 && (
-                  <div className="text-[10px] text-stone-400 px-1.5">+{dayEvents.length - 3} עוד</div>
+                {dayEvents.length > (holiday ? 2 : 3) && (
+                  <div className="text-[10px] text-stone-400 px-1.5">+{dayEvents.length - (holiday ? 2 : 3)} עוד</div>
                 )}
               </div>
-            </button>
+            </div>
           )
         })}
       </div>
@@ -208,6 +244,7 @@ export default function CalendarView({ color }: { color: string }) {
           date={selectedDate}
           events={(events[toISODate(selectedDate)] || [])}
           color={color}
+          startInNew={quickAdd}
           onClose={() => setSelectedDate(null)}
           onChanged={fetchEvents}
         />
@@ -216,26 +253,31 @@ export default function CalendarView({ color }: { color: string }) {
   )
 }
 
-function DayModal({ date, events, color, onClose, onChanged }: {
+function DayModal({ date, events, color, startInNew, onClose, onChanged }: {
   date: Date
   events: CalendarEvent[]
   color: string
+  startInNew: boolean
   onClose: () => void
   onChanged: () => void
 }) {
   const toast = useToast()
-  const [editing, setEditing] = useState<CalendarEvent | 'new' | null>(events.length === 0 ? 'new' : null)
+  const [editing, setEditing] = useState<CalendarEvent | 'new' | null>(startInNew || events.length === 0 ? 'new' : null)
   const [title, setTitle] = useState('')
+  const [kind, setKind] = useState<CalendarKind>('event')
   const [category, setCategory] = useState<CalendarCategory>('shoot')
   const [time, setTime] = useState('')
   const [notes, setNotes] = useState('')
+  const [reminder, setReminder] = useState('')
   const [saving, setSaving] = useState(false)
+  const holiday = hebrewHoliday(date)
 
   function startNew() {
-    setEditing('new'); setTitle(''); setCategory('shoot'); setTime(''); setNotes('')
+    setEditing('new'); setTitle(''); setKind('event'); setCategory('shoot'); setTime(''); setNotes(''); setReminder('')
   }
   function startEdit(ev: CalendarEvent) {
-    setEditing(ev); setTitle(ev.title); setCategory(ev.category); setTime(ev.event_time || ''); setNotes(ev.notes || '')
+    setEditing(ev); setTitle(ev.title); setKind(ev.kind); setCategory(ev.category)
+    setTime(ev.event_time || ''); setNotes(ev.notes || ''); setReminder(ev.reminder_minutes_before ? String(ev.reminder_minutes_before) : '')
   }
 
   async function save() {
@@ -247,10 +289,14 @@ function DayModal({ date, events, color, onClose, onChanged }: {
       const res = await fetch(url, {
         method: isNew ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventDate: toISODate(date), title: title.trim(), category, eventTime: time || null, notes: notes.trim() || null }),
+        body: JSON.stringify({
+          eventDate: toISODate(date), title: title.trim(), kind, category,
+          eventTime: time || null, notes: notes.trim() || null,
+          reminderMinutesBefore: reminder || null,
+        }),
       })
       if (!res.ok) { const d = await res.json(); toast(d.error || 'שגיאה בשמירה', 'error'); return }
-      toast(isNew ? 'האירוע נוסף' : 'האירוע עודכן')
+      toast(isNew ? 'נוסף' : 'עודכן')
       setEditing(null)
       onChanged()
     } catch { toast('שגיאה בשמירה', 'error') }
@@ -258,13 +304,25 @@ function DayModal({ date, events, color, onClose, onChanged }: {
   }
 
   async function remove(ev: CalendarEvent) {
-    if (!confirm('למחוק את האירוע?')) return
+    if (!confirm('למחוק?')) return
     try {
       const res = await fetch(`/api/dashboard/calendar/${ev.id}`, { method: 'DELETE' })
       if (!res.ok) { toast('שגיאה במחיקה', 'error'); return }
-      toast('האירוע נמחק')
+      toast('נמחק')
       onChanged()
     } catch { toast('שגיאה במחיקה', 'error') }
+  }
+
+  async function toggleComplete(ev: CalendarEvent) {
+    try {
+      const res = await fetch(`/api/dashboard/calendar/${ev.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !ev.completed }),
+      })
+      if (!res.ok) { toast('שגיאה בעדכון', 'error'); return }
+      onChanged()
+    } catch { toast('שגיאה בעדכון', 'error') }
   }
 
   return (
@@ -278,6 +336,7 @@ function DayModal({ date, events, color, onClose, onChanged }: {
                 {date.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
               <p className="text-xs text-stone-400">{hebrewFullLabel(date)}</p>
+              {holiday && <p className="text-xs font-semibold text-rose-600 mt-0.5">{holiday}</p>}
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-stone-400 hover:text-stone-600 p-1">
@@ -295,8 +354,13 @@ function DayModal({ date, events, color, onClose, onChanged }: {
                 return (
                   <div key={ev.id} className="rounded-xl border border-stone-200 p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
+                      {ev.kind === 'task' && (
+                        <button type="button" onClick={() => toggleComplete(ev)} className="shrink-0 mt-0.5 text-stone-400 hover:text-stone-600">
+                          {ev.completed ? <CheckSquare size={16} style={{ color: meta.color }} /> : <Square size={16} />}
+                        </button>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
                           <span className="text-xs font-medium" style={{ color: meta.color }}>{meta.label}</span>
                           {ev.event_time && (
@@ -304,8 +368,17 @@ function DayModal({ date, events, color, onClose, onChanged }: {
                               <Clock size={10} />{ev.event_time}
                             </span>
                           )}
+                          {ev.reminder_minutes_before && (
+                            <span className="flex items-center gap-0.5 text-[11px] text-stone-400">
+                              <Bell size={10} />
+                              {REMINDER_OPTIONS.find(r => r.value === String(ev.reminder_minutes_before))?.label}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-sm font-semibold text-stone-800 mt-1 break-words">{ev.title}</p>
+                        <p className="text-sm font-semibold text-stone-800 mt-1 break-words"
+                          style={ev.completed ? { textDecoration: 'line-through', opacity: 0.5 } : undefined}>
+                          {ev.title}
+                        </p>
                         {ev.notes && <p className="text-xs text-stone-500 mt-0.5 break-words whitespace-pre-wrap">{ev.notes}</p>}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
@@ -330,11 +403,21 @@ function DayModal({ date, events, color, onClose, onChanged }: {
             </button>
           ) : (
             <div className="space-y-3 rounded-xl border border-stone-200 p-3">
+              <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1 w-fit">
+                {([['event', 'אירוע'], ['task', 'משימה']] as const).map(([val, label]) => (
+                  <button key={val} type="button" onClick={() => setKind(val)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      kind === val ? 'bg-white text-stone-700 shadow-sm' : 'text-stone-400 hover:text-stone-600'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
               <input
                 autoFocus
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="כותרת (למשל: צילומי חתונה - דנה ויוסי)"
+                placeholder={kind === 'task' ? 'משימה (למשל: לשלוח חוזה ללקוחה)' : 'כותרת (למשל: צילומי חתונה - דנה ויוסי)'}
                 className="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200 transition"
               />
               <div className="flex gap-2">
@@ -345,6 +428,10 @@ function DayModal({ date, events, color, onClose, onChanged }: {
                 <input type="time" value={time} onChange={e => setTime(e.target.value)}
                   className="w-28 px-2 py-2 rounded-lg border border-stone-200 text-sm" dir="ltr" />
               </div>
+              <select value={reminder} onChange={e => setReminder(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm bg-white">
+                {REMINDER_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
