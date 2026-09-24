@@ -215,7 +215,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
               tabIndex={0}
               onClick={() => openDay(date, false)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openDay(date, false) }}
-              className="relative rounded-xl border text-right p-2 flex flex-col cursor-pointer transition-colors hover:border-stone-300"
+              className="relative rounded-xl border text-right p-2 flex flex-col cursor-pointer transition-colors hover:border-stone-300 group"
               style={{
                 minHeight: 96,
                 background: isToday ? color + '10' : isShabbat ? '#FAFAF9' : '#fff',
@@ -227,7 +227,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
               <button
                 type="button"
                 onClick={e => { e.stopPropagation(); openDay(date, true) }}
-                className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white z-10"
+                className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full flex items-center justify-center text-white z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 style={{ background: color }}
                 aria-label="הוספת אירוע"
               >
@@ -515,16 +515,11 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
 
           {editing !== null && editing !== 'choosing' && (
             <div className="space-y-3 rounded-xl border border-stone-200 p-3">
-              <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1 w-fit">
-                {([['event', 'אירוע'], ['task', 'משימה']] as const).map(([val, label]) => (
-                  <button key={val} type="button" onClick={() => setKind(val)}
-                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                      kind === val ? 'bg-white text-stone-700 shadow-sm' : 'text-stone-400 hover:text-stone-600'
-                    }`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <p className="text-xs font-medium text-stone-400">
+                {editing === 'new'
+                  ? (kind === 'task' ? 'משימה חדשה' : 'אירוע חדש')
+                  : (kind === 'task' ? 'עריכת משימה' : 'עריכת אירוע')}
+              </p>
               <input
                 autoFocus
                 value={title}
