@@ -345,7 +345,9 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
   onChanged: () => void
 }) {
   const toast = useToast()
-  const [editing, setEditing] = useState<CalendarEvent | 'new' | null>(startInNew || events.length === 0 ? 'new' : null)
+  const [editing, setEditing] = useState<CalendarEvent | 'new' | 'choosing' | null>(
+    startInNew || events.length === 0 ? 'choosing' : null
+  )
   const [title, setTitle] = useState('')
   const [kind, setKind] = useState<CalendarKind>('event')
   const [category, setCategory] = useState<CalendarCategory>('shoot')
@@ -355,8 +357,11 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
   const [saving, setSaving] = useState(false)
   const holiday = hebrewHoliday(date)
 
-  function startNew() {
-    setEditing('new'); setTitle(''); setKind('event'); setCategory('shoot'); setTime(''); setNotes(''); setReminder('')
+  function openChooser() {
+    setEditing('choosing'); setTitle(''); setKind('event'); setCategory('shoot'); setTime(''); setNotes(''); setReminder('')
+  }
+  function chooseKind(k: CalendarKind) {
+    setKind(k); setEditing('new')
   }
   function startEdit(ev: CalendarEvent) {
     setEditing(ev); setTitle(ev.title); setKind(ev.kind); setCategory(ev.category)
@@ -432,7 +437,7 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
             <div className="space-y-2">
               {events.map(ev => {
                 const meta = findCategory(categories, ev.category)
-                const isEditingThis = editing !== 'new' && editing !== null && editing.id === ev.id
+                const isEditingThis = editing !== 'new' && editing !== 'choosing' && editing !== null && editing.id === ev.id
                 if (isEditingThis) return null
                 return (
                   <div key={ev.id} className="rounded-xl border border-stone-200 p-3">
@@ -479,12 +484,36 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
             </div>
           )}
 
-          {editing === null ? (
-            <button type="button" onClick={startNew}
+          {editing === null && (
+            <button type="button" onClick={openChooser}
               className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-stone-300 text-stone-500 text-sm font-medium hover:border-stone-400 transition-colors">
               <Plus size={14} /> הוספת אירוע/משימה
             </button>
-          ) : (
+          )}
+
+          {editing === 'choosing' && (
+            <div className="rounded-xl border border-stone-200 p-3">
+              <p className="text-xs text-stone-400 mb-2">מה תרצי להוסיף?</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => chooseKind('event')}
+                  className="flex-1 py-3 rounded-lg border border-stone-200 text-sm font-medium text-stone-600 hover:border-stone-300 hover:bg-stone-50 transition-colors">
+                  אירוע
+                </button>
+                <button type="button" onClick={() => chooseKind('task')}
+                  className="flex-1 py-3 rounded-lg border border-stone-200 text-sm font-medium text-stone-600 hover:border-stone-300 hover:bg-stone-50 transition-colors">
+                  משימה
+                </button>
+              </div>
+              {events.length > 0 && (
+                <button type="button" onClick={() => setEditing(null)}
+                  className="w-full mt-2 py-1.5 text-xs text-stone-400 hover:text-stone-600">
+                  ביטול
+                </button>
+              )}
+            </div>
+          )}
+
+          {editing !== null && editing !== 'choosing' && (
             <div className="space-y-3 rounded-xl border border-stone-200 p-3">
               <div className="flex items-center gap-1 bg-stone-100 rounded-lg p-1 w-fit">
                 {([['event', 'אירוע'], ['task', 'משימה']] as const).map(([val, label]) => (
