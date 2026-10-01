@@ -27,6 +27,16 @@ function paletteEntry(bg: string | undefined) {
   return PALETTE.find(p => p.bg.toLowerCase() === bg?.toLowerCase())
 }
 
+// Palette values are what gets saved; on screen they're shown a bit lighter (mixed with white)
+function lighten(hex: string, amount = 0.4): string {
+  const n = parseInt(hex.slice(1), 16)
+  const mix = (shift: number) => {
+    const v = (n >> shift) & 255
+    return Math.round(v + (255 - v) * amount).toString(16).padStart(2, '0')
+  }
+  return `#${mix(16)}${mix(8)}${mix(0)}`
+}
+
 const DEFAULT_CATEGORIES: { value: CalendarCategory; label: string; color: string }[] = [
   { value: 'shoot', label: 'צילומים', color: '#DDD6FE' },
   { value: 'delivery', label: 'מסירה', color: '#BBF7D0' },
@@ -43,7 +53,8 @@ const REMINDER_OPTIONS: { value: string; label: string }[] = [
   { value: '43200', label: 'חודש לפני' },
 ]
 
-type CategoryMeta = { value: CalendarCategory; label: string; color: string; text: string }
+// base = saved palette value, color = lighter display shade
+type CategoryMeta = { value: CalendarCategory; label: string; base: string; color: string; text: string }
 
 function findCategory(categories: CategoryMeta[], value: string): CategoryMeta {
   return categories.find(c => c.value === value) || categories[categories.length - 1]
@@ -80,7 +91,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
     // Saved colors outside the light palette (from before it existed) fall back to the default
     () => DEFAULT_CATEGORIES.map(c => {
       const entry = paletteEntry(categoryColors[c.value]) || paletteEntry(c.color)!
-      return { ...c, color: entry.bg, text: entry.text }
+      return { ...c, base: entry.bg, color: lighten(entry.bg), text: entry.text }
     }),
     [categoryColors]
   )
@@ -311,7 +322,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
         {weekEvents.length === 0 ? (
           <p className="text-xs text-stone-400">אין אירועים או משימות ב-14 הימים הקרובים</p>
         ) : (
-          <div className="space-y-3">
+          <div className="divide-y divide-stone-100">
             {Object.entries(
               weekEvents.reduce<Record<string, CalendarEvent[]>>((acc, ev) => {
                 (acc[ev.event_date] ||= []).push(ev)
@@ -321,14 +332,14 @@ export default function CalendarView({ color, initialCategoryColors }: {
               const d = new Date(`${dateKey}T00:00:00`)
               const isToday = sameDay(d, today)
               return (
-                <div key={dateKey}>
+                <div key={dateKey} className="py-4 first:pt-0 last:pb-0">
                   <button type="button" onClick={() => openDay(d, false)}
-                    className="text-[11px] font-semibold mb-1 hover:underline"
+                    className="block text-[11px] font-semibold mb-2 hover:underline"
                     style={{ color: isToday ? color : '#78716C' }}>
                     {isToday ? 'היום · ' : ''}
                     {d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric' })}
                   </button>
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {list.map(ev => {
                       const meta = findCategory(categories, ev.category)
                       return (
@@ -386,7 +397,7 @@ function ColorEditorModal({ categories, onClose, onSave }: {
   onSave: (colors: Record<string, string>) => void
 }) {
   const [draft, setDraft] = useState<Record<string, string>>(
-    () => Object.fromEntries(categories.map(c => [c.value, c.color]))
+    () => Object.fromEntries(categories.map(c => [c.value, c.base]))
   )
 
   return (
@@ -402,7 +413,7 @@ function ColorEditorModal({ categories, onClose, onSave }: {
           {categories.map(c => (
             <div key={c.value} className="space-y-1.5">
               <span className="text-sm font-medium px-2 py-0.5 rounded"
-                style={{ background: draft[c.value], color: paletteEntry(draft[c.value])?.text }}>
+                style={{ background: lighten(draft[c.value]), color: paletteEntry(draft[c.value])?.text }}>
                 {c.label}
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -413,7 +424,7 @@ function ColorEditorModal({ categories, onClose, onSave }: {
                       onClick={() => setDraft(prev => ({ ...prev, [c.value]: p.bg }))}
                       className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
                       style={{
-                        background: p.bg,
+                        background: lighten(p.bg),
                         boxShadow: selected ? `0 0 0 2px #fff, 0 0 0 4px ${p.text}` : 'inset 0 0 0 1px rgba(0,0,0,0.06)',
                       }}
                       aria-label="בחירת צבע">
@@ -525,6 +536,7 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
       if (!res.ok) { toast('שגיאה במחיקה', 'error'); return }
       toast('נמחק')
       onChanged()
+      onClose()
     } catch { toast('שגיאה במחיקה', 'error') }
   }
 
