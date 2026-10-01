@@ -75,7 +75,7 @@ function JobRow({ job, onDismiss, onCancel }: { job: UploadJob; onDismiss: () =>
           <span className={`flex items-center gap-1 ${job.failed === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
             {job.failed === 0
               ? <><CheckCircle size={11} /> הועלו {job.done} תמונות בהצלחה</>
-              : <><AlertCircle size={11} /> {job.done} הצליחו, {job.failed} נכשלו</>
+              : <><AlertCircle size={11} /> {job.done} הועלו, {job.failed} לא הועלו</>
             }
           </span>
         ) : isCancelled ? (

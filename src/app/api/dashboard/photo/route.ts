@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { v2 as cloudinary } from 'cloudinary'
 import { NextRequest } from 'next/server'
+import { MAX_PHOTOS_PER_PORTFOLIO } from '@/lib/constants'
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -18,6 +19,28 @@ export async function POST(req: NextRequest) {
   if (!sessionId || !url) return Response.json({ error: 'חסרים פרטים' }, { status: 400 })
 
   const admin = createAdminClient()
+
+  const { data: sessionRow } = await admin
+    .from('sessions')
+    .select('portfolio_id')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (sessionRow) {
+    const { data: portfolioSessions } = await admin
+      .from('sessions')
+      .select('id')
+      .eq('portfolio_id', sessionRow.portfolio_id)
+    const { count } = await admin
+      .from('photos')
+      .select('id', { count: 'exact', head: true })
+      .in('session_id', (portfolioSessions || []).map(s => s.id))
+    if ((count ?? 0) >= MAX_PHOTOS_PER_PORTFOLIO) {
+      return Response.json(
+        { error: `הגעת למגבלה של ${MAX_PHOTOS_PER_PORTFOLIO} תמונות בתיק`, code: 'LIMIT' },
+        { status: 409 },
+      )
+    }
+  }
 
   const { data: existing } = await admin
     .from('photos')

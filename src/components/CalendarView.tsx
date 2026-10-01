@@ -1,19 +1,38 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronLeft, ArrowRight, Plus, X, Trash2, Loader2, Clock, CalendarDays, Bell, CheckSquare, Square, Palette } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronRight, ChevronLeft, ArrowRight, Plus, X, Trash2, Loader2, Clock, CalendarDays, Bell, CheckSquare, Square, Palette, Check } from 'lucide-react'
 import type { CalendarEvent, CalendarCategory, CalendarKind } from '@/lib/types'
 import { hebrewDayMonthLabel, hebrewFullLabel, hebrewHoliday } from '@/lib/hebrewDate'
 import { useToast } from './Toast'
 
 const WEEKDAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת']
 
+// Only light colors can be chosen; each has a matching dark shade for readable text
+const PALETTE: { bg: string; text: string }[] = [
+  { bg: '#DDD6FE', text: '#5B21B6' }, // violet
+  { bg: '#BFDBFE', text: '#1E40AF' }, // blue
+  { bg: '#A5F3FC', text: '#155E75' }, // cyan
+  { bg: '#BBF7D0', text: '#166534' }, // green
+  { bg: '#D9F99D', text: '#3F6212' }, // lime
+  { bg: '#FDE68A', text: '#92400E' }, // amber
+  { bg: '#FED7AA', text: '#9A3412' }, // orange
+  { bg: '#FECACA', text: '#991B1B' }, // red
+  { bg: '#FBCFE8', text: '#9D174D' }, // pink
+  { bg: '#E7E5E4', text: '#44403C' }, // stone
+]
+
+function paletteEntry(bg: string | undefined) {
+  return PALETTE.find(p => p.bg.toLowerCase() === bg?.toLowerCase())
+}
+
 const DEFAULT_CATEGORIES: { value: CalendarCategory; label: string; color: string }[] = [
-  { value: 'shoot', label: 'צילומים', color: '#3B82F6' },
-  { value: 'delivery', label: 'מסירה', color: '#10B981' },
-  { value: 'meeting', label: 'פגישה', color: '#8B5CF6' },
-  { value: 'personal', label: 'אישי', color: '#F59E0B' },
-  { value: 'other', label: 'אחר', color: '#6B7280' },
+  { value: 'shoot', label: 'צילומים', color: '#DDD6FE' },
+  { value: 'delivery', label: 'מסירה', color: '#BBF7D0' },
+  { value: 'meeting', label: 'פגישה', color: '#BFDBFE' },
+  { value: 'personal', label: 'אישי', color: '#FDE68A' },
+  { value: 'other', label: 'אחר', color: '#E7E5E4' },
 ]
 
 const REMINDER_OPTIONS: { value: string; label: string }[] = [
@@ -24,7 +43,7 @@ const REMINDER_OPTIONS: { value: string; label: string }[] = [
   { value: '43200', label: 'חודש לפני' },
 ]
 
-type CategoryMeta = { value: CalendarCategory; label: string; color: string }
+type CategoryMeta = { value: CalendarCategory; label: string; color: string; text: string }
 
 function findCategory(categories: CategoryMeta[], value: string): CategoryMeta {
   return categories.find(c => c.value === value) || categories[categories.length - 1]
@@ -53,12 +72,16 @@ export default function CalendarView({ color, initialCategoryColors }: {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [quickAdd, setQuickAdd] = useState(false)
-  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
+  const [weekEvents, setWeekEvents] = useState<CalendarEvent[]>([])
   const [categoryColors, setCategoryColors] = useState<Record<string, string>>(initialCategoryColors || {})
   const [editingColors, setEditingColors] = useState(false)
 
   const categories = useMemo<CategoryMeta[]>(
-    () => DEFAULT_CATEGORIES.map(c => ({ ...c, color: categoryColors[c.value] || c.color })),
+    // Saved colors outside the light palette (from before it existed) fall back to the default
+    () => DEFAULT_CATEGORIES.map(c => {
+      const entry = paletteEntry(categoryColors[c.value]) || paletteEntry(c.color)!
+      return { ...c, color: entry.bg, text: entry.text }
+    }),
     [categoryColors]
   )
 
@@ -105,6 +128,26 @@ export default function CalendarView({ color, initialCategoryColors }: {
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
+  // Upcoming 7 days (today included) for the side panel — independent of the displayed month
+  const fetchWeek = useCallback(() => {
+    const end = new Date(today)
+    end.setDate(end.getDate() + 6)
+    fetch(`/api/dashboard/calendar?from=${toISODate(today)}&to=${toISODate(end)}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => {
+        if (!Array.isArray(data)) return
+        const sorted = [...(data as CalendarEvent[])].sort((a, b) =>
+          a.event_date.localeCompare(b.event_date) ||
+          (a.event_time || '99:99').localeCompare(b.event_time || '99:99'))
+        setWeekEvents(sorted)
+      })
+      .catch(() => { /* side panel is non-critical */ })
+  }, [today])
+
+  useEffect(() => { fetchWeek() }, [fetchWeek])
+
+  const refreshAll = useCallback(() => { fetchEvents(); fetchWeek() }, [fetchEvents, fetchWeek])
+
   function goPrev() {
     if (monthIndex(currentMonth) <= monthIndex(minMonth)) return
     setCurrentMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))
@@ -115,14 +158,6 @@ export default function CalendarView({ color, initialCategoryColors }: {
   }
   function goToday() {
     setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1))
-  }
-
-  function toggleCategory(cat: string) {
-    setHiddenCategories(prev => {
-      const next = new Set(prev)
-      next.has(cat) ? next.delete(cat) : next.add(cat)
-      return next
-    })
   }
 
   function openDay(date: Date, forceNew: boolean) {
@@ -168,29 +203,24 @@ export default function CalendarView({ color, initialCategoryColors }: {
         </div>
       </div>
 
-      {/* Category legend / filter */}
-      <div className="mb-1 flex items-center gap-2 flex-wrap">
-        {categories.map(c => {
-          const active = !hiddenCategories.has(c.value)
-          return (
-            <button key={c.value} type="button" onClick={() => toggleCategory(c.value)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all"
-              style={active
-                ? { background: c.color + '18', borderColor: c.color + '40', color: c.color }
-                : { background: 'transparent', borderColor: '#E7E5E4', color: '#A8A29E' }
-              }>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? c.color : '#D6D3D1' }} />
-              {c.label}
-            </button>
-          )
-        })}
+      {/* Category legend */}
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
+        {categories.map(c => (
+          <span key={c.value}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+            style={{ background: c.color, borderColor: c.color, color: c.text }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.text }} />
+            {c.label}
+          </span>
+        ))}
         <button type="button" onClick={() => setEditingColors(true)}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
           <Palette size={11} /> עריכת צבעים
         </button>
       </div>
-      <p className="text-[11px] text-stone-400 mb-4">לחיצה על קטגוריה מסתירה/מציגה אותה בלוח</p>
 
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+      <div className="flex-1 min-w-0 w-full">
       {/* Weekday header */}
       <div className="grid grid-cols-7 mb-1">
         {WEEKDAYS.map(w => (
@@ -205,8 +235,11 @@ export default function CalendarView({ color, initialCategoryColors }: {
           const isToday = sameDay(date, today)
           const isShabbat = date.getDay() === 6
           const key = toISODate(date)
-          const dayEvents = (events[key] || []).filter(ev => !hiddenCategories.has(ev.category))
+          const dayEvents = events[key] || []
           const holiday = hebrewHoliday(date)
+          // The whole square takes the color of the day's first (open) event
+          const leadEvent = dayEvents.find(ev => !ev.completed) || dayEvents[0]
+          const dayMeta = leadEvent ? findCategory(categories, leadEvent.category) : null
 
           return (
             <div
@@ -218,8 +251,8 @@ export default function CalendarView({ color, initialCategoryColors }: {
               className="relative rounded-xl border text-right p-2 flex flex-col cursor-pointer transition-colors hover:border-stone-300 group"
               style={{
                 minHeight: 96,
-                background: isToday ? color + '10' : isShabbat ? '#FAFAF9' : '#fff',
-                borderColor: isToday ? color : '#E7E5E4',
+                background: dayMeta ? dayMeta.color : isToday ? color + '10' : isShabbat ? '#FAFAF9' : '#fff',
+                borderColor: isToday ? color : dayMeta ? dayMeta.color : '#E7E5E4',
                 borderWidth: isToday ? 2 : 1,
                 opacity: inMonth ? 1 : 0.4,
               }}
@@ -235,7 +268,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
               </button>
 
               <div className="flex items-start justify-between mb-1 gap-1 pl-5">
-                <span className="text-[10px] text-stone-400 truncate leading-tight">
+                <span className={`text-[10px] truncate leading-tight ${dayMeta ? 'text-stone-500' : 'text-stone-400'}`}>
                   {hebrewDayMonthLabel(date)}
                 </span>
                 <span className="text-sm font-semibold shrink-0" style={{ color: isToday ? color : '#44403C' }}>
@@ -251,10 +284,10 @@ export default function CalendarView({ color, initialCategoryColors }: {
                 {dayEvents.slice(0, holiday ? 2 : 3).map(ev => {
                   const meta = findCategory(categories, ev.category)
                   return (
-                    <div key={ev.id} className="text-[10px] px-1.5 py-0.5 rounded truncate text-right"
+                    <div key={ev.id} className="text-[10px] font-medium px-1.5 py-0.5 rounded truncate text-right"
                       style={{
-                        background: meta.color + '18',
-                        color: meta.color,
+                        background: 'rgba(255,255,255,0.6)',
+                        color: meta.text,
                         textDecoration: ev.completed ? 'line-through' : 'none',
                         opacity: ev.completed ? 0.6 : 1,
                       }}>
@@ -270,6 +303,59 @@ export default function CalendarView({ color, initialCategoryColors }: {
           )
         })}
       </div>
+      </div>
+
+      {/* Upcoming week side panel */}
+      <aside className="w-full lg:w-64 shrink-0 rounded-xl border border-stone-200 bg-white p-4 lg:sticky lg:top-4">
+        <p className="text-sm font-semibold text-stone-700 mb-3">השבוע הקרוב</p>
+        {weekEvents.length === 0 ? (
+          <p className="text-xs text-stone-400">אין אירועים או משימות ב-7 הימים הקרובים</p>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(
+              weekEvents.reduce<Record<string, CalendarEvent[]>>((acc, ev) => {
+                (acc[ev.event_date] ||= []).push(ev)
+                return acc
+              }, {})
+            ).map(([dateKey, list]) => {
+              const d = new Date(`${dateKey}T00:00:00`)
+              const isToday = sameDay(d, today)
+              return (
+                <div key={dateKey}>
+                  <button type="button" onClick={() => openDay(d, false)}
+                    className="text-[11px] font-semibold mb-1 hover:underline"
+                    style={{ color: isToday ? color : '#78716C' }}>
+                    {isToday ? 'היום · ' : ''}
+                    {d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric' })}
+                  </button>
+                  <div className="space-y-1">
+                    {list.map(ev => {
+                      const meta = findCategory(categories, ev.category)
+                      return (
+                        <button key={ev.id} type="button" onClick={() => openDay(d, false)}
+                          className="w-full text-right text-xs px-2 py-1.5 rounded-lg flex items-center gap-1.5 hover:brightness-95 transition"
+                          style={{
+                            background: meta.color,
+                            color: meta.text,
+                            borderRight: `3px solid ${meta.text}`,
+                          }}>
+                          {ev.kind === 'task' && (ev.completed ? <CheckSquare size={11} className="shrink-0" /> : <Square size={11} className="shrink-0" />)}
+                          <span className="truncate flex-1"
+                            style={ev.completed ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>
+                            {ev.title}
+                          </span>
+                          {ev.event_time && <span className="text-[10px] shrink-0 opacity-80" dir="ltr">{ev.event_time}</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </aside>
+      </div>
 
       {selectedDate && (
         <DayModal
@@ -279,7 +365,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
           color={color}
           startInNew={quickAdd}
           onClose={() => setSelectedDate(null)}
-          onChanged={fetchEvents}
+          onChanged={refreshAll}
         />
       )}
 
@@ -314,14 +400,28 @@ function ColorEditorModal({ categories, onClose, onSave }: {
         </div>
         <div className="p-5 space-y-3">
           {categories.map(c => (
-            <div key={c.value} className="flex items-center justify-between gap-3">
-              <span className="text-sm text-stone-600">{c.label}</span>
-              <input
-                type="color"
-                value={draft[c.value]}
-                onChange={e => setDraft(prev => ({ ...prev, [c.value]: e.target.value }))}
-                className="w-10 h-8 rounded cursor-pointer border border-stone-200"
-              />
+            <div key={c.value} className="space-y-1.5">
+              <span className="text-sm font-medium px-2 py-0.5 rounded"
+                style={{ background: draft[c.value], color: paletteEntry(draft[c.value])?.text }}>
+                {c.label}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {PALETTE.map(p => {
+                  const selected = p.bg.toLowerCase() === draft[c.value]?.toLowerCase()
+                  return (
+                    <button key={p.bg} type="button"
+                      onClick={() => setDraft(prev => ({ ...prev, [c.value]: p.bg }))}
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
+                      style={{
+                        background: p.bg,
+                        boxShadow: selected ? `0 0 0 2px #fff, 0 0 0 4px ${p.text}` : 'inset 0 0 0 1px rgba(0,0,0,0.06)',
+                      }}
+                      aria-label="בחירת צבע">
+                      {selected && <Check size={13} style={{ color: p.text }} />}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           ))}
           <button type="button" onClick={() => onSave(draft)}
@@ -471,13 +571,13 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
                     <div className="flex items-start justify-between gap-2">
                       {ev.kind === 'task' && (
                         <button type="button" onClick={() => toggleComplete(ev)} className="shrink-0 mt-0.5 text-stone-400 hover:text-stone-600">
-                          {ev.completed ? <CheckSquare size={16} style={{ color: meta.color }} /> : <Square size={16} />}
+                          {ev.completed ? <CheckSquare size={16} style={{ color: meta.text }} /> : <Square size={16} />}
                         </button>
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
-                          <span className="text-xs font-medium" style={{ color: meta.color }}>{meta.label}</span>
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.text }} />
+                          <span className="text-xs font-medium px-1.5 rounded" style={{ background: meta.color, color: meta.text }}>{meta.label}</span>
                           {ev.event_time && (
                             <span className="flex items-center gap-0.5 text-[11px] text-stone-400">
                               <Clock size={10} />{ev.event_time}
@@ -571,6 +671,13 @@ function DayModal({ date, events, categories, color, startInNew, onClose, onChan
                 className="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm bg-white">
                 {REMINDER_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
+              <p className="text-[11px] text-stone-400 -mt-1.5 flex items-start gap-1">
+                <Bell size={10} className="shrink-0 mt-0.5" />
+                <span>
+                  התזכורת נשלחת במייל רק אם הוגדרו הגדרות המייל ב
+                  <Link href="/dashboard/settings" className="underline hover:text-stone-600">הגדרות</Link>
+                </span>
+              </p>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}

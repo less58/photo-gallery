@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest } from 'next/server'
+import { sortByName } from '@/lib/naturalSort'
 
 function buildTxt(title: string, email: string, items: { name: string; status: string }[]) {
-  const approved = items.filter(i => i.status === 'approved')
-  const maybe = items.filter(i => i.status === 'maybe')
+  const approved = sortByName(items.filter(i => i.status === 'approved'))
+  const maybe = sortByName(items.filter(i => i.status === 'maybe'))
   const date = new Date().toLocaleDateString('he-IL')
 
   const lines: string[] = [

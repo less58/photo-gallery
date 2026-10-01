@@ -9,6 +9,8 @@ import AlbumTab from './AlbumTab'
 import type { Portfolio, Session, Photo } from '@/lib/types'
 import { useToast } from './Toast'
 import { useUpload } from '@/context/UploadContext'
+import { MAX_PHOTOS_PER_PORTFOLIO } from '@/lib/constants'
+import { compareNames, sortByName } from '@/lib/naturalSort'
 
 type Photographer = {
   id: string; name: string; logo_url: string | null
@@ -362,13 +364,28 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
   }
 
   async function uploadPhotos(sessionId: string, files: FileList) {
-    const fileArr = Array.from(files)
-    const total = fileArr.length
+    // Sorted by name so that when the limit is hit, the skipped files are the last ones
+    const sorted = Array.from(files).sort((a, b) => compareNames(a.name, b.name))
+    const room = Math.max(0, MAX_PHOTOS_PER_PORTFOLIO - allPhotos.length)
+    if (room === 0) {
+      toast(`התיק כבר מכיל ${MAX_PHOTOS_PER_PORTFOLIO} תמונות — זו המגבלה לתיק. לא הועלו תמונות.`, 'error')
+      return
+    }
+    const fileArr = sorted.slice(0, room)
+    const overflow = sorted.slice(room)
+    const total = sorted.length
     let done = 0
-    let failed = 0
+    let failed = overflow.length
     const newPhotos: Photo[] = []
     const sessionName = sessions.find(s => s.id === sessionId)?.name ?? 'סשן'
     const jobId = trackUpload(sessionId, sessionName, portfolio.id, portfolio.title, total)
+
+    if (overflow.length > 0) {
+      const reason = `לא הועלתה — חריגה ממגבלת ${MAX_PHOTOS_PER_PORTFOLIO} תמונות לתיק`
+      overflow.forEach(f => failUpload(jobId, f.name, reason))
+      progressUpload(jobId, 0, failed)
+      toast(`מגבלה: עד ${MAX_PHOTOS_PER_PORTFOLIO} תמונות לתיק. יועלו ${fileArr.length} תמונות, ${overflow.length} לא יועלו (החל מ-${overflow[0].name}).`, 'error')
+    }
 
     async function uploadOne(file: File): Promise<Photo | null> {
       const name = file.name
@@ -421,7 +438,8 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
         body: JSON.stringify({ sessionId, url, thumbnailUrl, name }),
       })
       if (!addRes.ok) {
-        failUpload(jobId, name, 'שגיאת שמירה בבסיס הנתונים')
+        const errData = await addRes.json().catch(() => ({})) as Record<string, unknown>
+        failUpload(jobId, name, String(errData.error || 'שגיאת שמירה בבסיס הנתונים'))
         return null
       }
       return await addRes.json() as Photo
@@ -703,9 +721,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
       '',
     ]
 
-    for (const { sessionName, photos } of Object.values(bySession)) {
-      if (Object.keys(bySession).length > 1) lines.push(`— ${sessionName} —`)
-      photos.forEach((p, i) => lines.push(`${i + 1}. ${photoName(p)}`))
+    // Sessions in their display order; photos within each sorted by file name
+    const groups = sessions.map(s => bySession[s.id]).filter(Boolean)
+    for (const { sessionName, photos } of groups) {
+      if (groups.length > 1) lines.push(`— ${sessionName} —`)
+      sortByName(photos).forEach((p, i) => lines.push(`${i + 1}. ${photoName(p)}`))
       lines.push('')
     }
 
@@ -1132,6 +1152,11 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               <span className="text-sm font-medium text-stone-600 flex items-center gap-2">
                 {loadingData && <span className="inline-block w-3 h-3 border-2 border-stone-300 border-t-stone-500 rounded-full animate-spin" />}
                 {sessions.length === 0 ? (loadingData ? 'טוענת...' : 'לא נוצרו סשנים') : `${sessions.length} סשנים`}
+                <span
+                  className={`text-xs font-normal ${allPhotos.length >= MAX_PHOTOS_PER_PORTFOLIO ? 'text-red-500' : allPhotos.length >= MAX_PHOTOS_PER_PORTFOLIO * 0.9 ? 'text-amber-600' : 'text-stone-400'}`}
+                  title={`מגבלה: עד ${MAX_PHOTOS_PER_PORTFOLIO} תמונות לתיק`}>
+                  · {allPhotos.length}/{MAX_PHOTOS_PER_PORTFOLIO} תמונות (מקסימום לתיק)
+                </span>
               </span>
               {!isFrozen && (
                 <div className="flex gap-2">
@@ -1180,7 +1205,7 @@ export default function PortfolioTabs({ portfolio, sessions: initialSessions, se
               className="flex flex-col items-center justify-center w-full py-14 border-2 border-dashed border-stone-200 rounded-xl text-stone-400 hover:border-stone-300 transition-colors">
               <Upload size={28} strokeWidth={1.5} className="mb-2 opacity-50" />
               <p className="text-sm font-medium">לחצי להעלאת תמונות</p>
-              <p className="text-xs mt-1 text-stone-300">יצירת סשן "כללי" אוטומטית</p>
+              <p className="text-xs mt-1 text-stone-300">יצירת סשן "כללי" אוטומטית · עד {MAX_PHOTOS_PER_PORTFOLIO} תמונות לתיק</p>
             </button>
           )}
 

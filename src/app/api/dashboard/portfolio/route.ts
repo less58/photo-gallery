@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { buildEmailHtml, buildEmailText } from '@/lib/emailTemplate'
 import { v2 as cloudinary } from 'cloudinary'
+import { sortByName } from '@/lib/naturalSort'
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -152,8 +153,8 @@ export async function DELETE(req: NextRequest) {
   })
 
   if (includeReport && snapshotItems.length > 0) {
-    const approved = snapshotItems.filter(i => i.status === 'approved')
-    const maybe = snapshotItems.filter(i => i.status === 'maybe')
+    const approved = sortByName(snapshotItems.filter(i => i.status === 'approved'))
+    const maybe = sortByName(snapshotItems.filter(i => i.status === 'maybe'))
     const date = new Date().toLocaleDateString('he-IL')
     const lines = [`גלריה: ${portfolio.title}`, `לקוחה: ${portfolio.client_email}`, `תאריך הורדה: ${date}`, '']
     if (approved.length > 0) {

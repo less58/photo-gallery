@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 import { buildEmailHtml, buildEmailText } from '@/lib/emailTemplate'
 import type { Photo } from '@/lib/types'
+import { sortByName } from '@/lib/naturalSort'
 
 async function sendEmail(
   ph: Record<string, unknown>,
@@ -71,10 +72,10 @@ export async function POST(req: NextRequest) {
     .eq('portfolio_id', session.portfolioId)
 
   const allPhotos: Photo[] = (rawSessions || []).flatMap(s => (s.photos as Photo[]) || [])
-  const approved = (selections || [])
+  const approved = sortByName((selections || [])
     .filter(s => s.status === 'approved')
     .map(s => allPhotos.find(p => p.id === s.photo_id))
-    .filter((p): p is Photo => !!p)
+    .filter((p): p is Photo => !!p))
 
   const ph = (portfolio.photographer ?? {}) as Record<string, unknown>
   const photographerEmail = String(ph.email || '')

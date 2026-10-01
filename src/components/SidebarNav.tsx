@@ -96,7 +96,7 @@ export default function SidebarNav({ brand, isFrozen, name, logoUrl }: Props) {
       {/* Nav items */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         <NavItem href="/dashboard" label="בית — תיקים" icon={<Home size={16} />} exact />
-        <NavItem href="/dashboard/calendar" label="לוח שנה" icon={<CalendarDays size={16} />} />
+        <NavItem href="/dashboard/calendar" label="יומן" icon={<CalendarDays size={16} />} />
         <NavItem href="/dashboard/messages" label="צאט" icon={<MessageCircle size={16} />} badge={unread} />
         <NavItem href="/dashboard/archive" label="קבצי תמונות נבחרות" icon={<Archive size={16} />} />
         <NavItem href="/dashboard/settings" label="הגדרות" icon={<Settings size={16} />} />
