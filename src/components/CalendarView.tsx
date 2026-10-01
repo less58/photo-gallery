@@ -128,10 +128,10 @@ export default function CalendarView({ color, initialCategoryColors }: {
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
-  // Upcoming 7 days (today included) for the side panel — independent of the displayed month
+  // Upcoming 14 days (today included) for the side panel — independent of the displayed month
   const fetchWeek = useCallback(() => {
     const end = new Date(today)
-    end.setDate(end.getDate() + 6)
+    end.setDate(end.getDate() + 13)
     fetch(`/api/dashboard/calendar?from=${toISODate(today)}&to=${toISODate(end)}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(data => {
@@ -252,7 +252,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
               style={{
                 minHeight: 96,
                 background: dayMeta ? dayMeta.color : isToday ? color + '10' : isShabbat ? '#FAFAF9' : '#fff',
-                borderColor: isToday ? color : dayMeta ? dayMeta.color : '#E7E5E4',
+                borderColor: isToday ? color : dayMeta ? dayMeta.text + '55' : '#E7E5E4',
                 borderWidth: isToday ? 2 : 1,
                 opacity: inMonth ? 1 : 0.4,
               }}
@@ -305,11 +305,11 @@ export default function CalendarView({ color, initialCategoryColors }: {
       </div>
       </div>
 
-      {/* Upcoming week side panel */}
-      <aside className="w-full lg:w-64 shrink-0 rounded-xl border border-stone-200 bg-white p-4 lg:sticky lg:top-4">
-        <p className="text-sm font-semibold text-stone-700 mb-3">השבוע הקרוב</p>
+      {/* Upcoming two weeks side panel — on wide screens it sits on the right, next to the sidebar */}
+      <aside className="w-full lg:w-64 shrink-0 lg:order-first rounded-xl border border-stone-200 bg-white p-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+        <p className="text-sm font-semibold text-stone-700 mb-3">השבועיים הקרובים</p>
         {weekEvents.length === 0 ? (
-          <p className="text-xs text-stone-400">אין אירועים או משימות ב-7 הימים הקרובים</p>
+          <p className="text-xs text-stone-400">אין אירועים או משימות ב-14 הימים הקרובים</p>
         ) : (
           <div className="space-y-3">
             {Object.entries(

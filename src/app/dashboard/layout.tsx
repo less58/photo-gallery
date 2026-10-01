@@ -1,6 +1,7 @@
 import { getSessionUser, getPhotographerByEmail } from '@/lib/auth/getPhotographer'
 import { redirect } from 'next/navigation'
 import SidebarNav from '@/components/SidebarNav'
+import MainContainer from '@/components/MainContainer'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser()
@@ -31,9 +32,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Main content — offset to the right of sidebar (sidebar is on the right, content on the left) */}
       <main className="flex-1 mr-56 px-6 py-8 min-h-screen" dir="rtl">
-        <div className="max-w-5xl mx-auto">
+        <MainContainer>
           {children}
-        </div>
+        </MainContainer>
       </main>
     </div>
   )
