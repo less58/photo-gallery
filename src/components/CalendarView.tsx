@@ -28,7 +28,7 @@ function paletteEntry(bg: string | undefined) {
 }
 
 // Palette values are what gets saved; on screen they're shown a bit lighter (mixed with white)
-function lighten(hex: string, amount = 0.4): string {
+function lighten(hex: string, amount = 0.6): string {
   const n = parseInt(hex.slice(1), 16)
   const mix = (shift: number) => {
     const v = (n >> shift) & 255
@@ -322,7 +322,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
         {weekEvents.length === 0 ? (
           <p className="text-xs text-stone-400">אין אירועים או משימות ב-14 הימים הקרובים</p>
         ) : (
-          <div className="divide-y divide-stone-100">
+          <div className="divide-y divide-stone-300">
             {Object.entries(
               weekEvents.reduce<Record<string, CalendarEvent[]>>((acc, ev) => {
                 (acc[ev.event_date] ||= []).push(ev)
@@ -339,11 +339,12 @@ export default function CalendarView({ color, initialCategoryColors }: {
                     {isToday ? 'היום · ' : ''}
                     {d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric' })}
                   </button>
-                  <div className="space-y-2">
+                  <div className="divide-y divide-dashed divide-stone-300">
                     {list.map(ev => {
                       const meta = findCategory(categories, ev.category)
                       return (
-                        <button key={ev.id} type="button" onClick={() => openDay(d, false)}
+                        <div key={ev.id} className="py-2 first:pt-0 last:pb-0">
+                        <button type="button" onClick={() => openDay(d, false)}
                           className="w-full text-right text-xs px-2 py-1.5 rounded-lg flex items-center gap-1.5 hover:brightness-95 transition"
                           style={{
                             background: meta.color,
@@ -357,6 +358,7 @@ export default function CalendarView({ color, initialCategoryColors }: {
                           </span>
                           {ev.event_time && <span className="text-[10px] shrink-0 opacity-80" dir="ltr">{ev.event_time}</span>}
                         </button>
+                        </div>
                       )
                     })}
                   </div>
