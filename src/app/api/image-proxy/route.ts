@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
     return new Response(buf, {
       headers: {
         'content-type': ct,
-        'cache-control': 'no-store',
+        // private: cached by the viewer's browser only, never by Vercel's CDN (the CDN
+        // would serve it without checking the portfolio session). The token is stable
+        // per photo, so repeat visits load from the browser cache instead of re-fetching.
+        'cache-control': 'private, max-age=2592000, immutable',
       },
     })
   } catch {

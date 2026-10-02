@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, createHmac } from 'crypto'
 
 function getKey(): Buffer {
   const hex = process.env.IMAGE_PROXY_SECRET
@@ -7,9 +7,12 @@ function getKey(): Buffer {
 }
 
 export function encryptUrl(url: string, portfolioId: string): string {
-  const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', getKey(), iv)
   const payload = JSON.stringify({ url, portfolioId })
+  // Deterministic IV (derived from the payload) so the same photo always gets the same
+  // token/URL — otherwise every page render produces new URLs and the browser can never
+  // reuse a cached image. Distinct payloads still get distinct IVs, so GCM stays safe.
+  const iv = createHmac('sha256', getKey()).update(payload).digest().subarray(0, 12)
+  const cipher = createCipheriv('aes-256-gcm', getKey(), iv)
   const encrypted = Buffer.concat([cipher.update(payload, 'utf8'), cipher.final()])
   const tag = cipher.getAuthTag()
   return Buffer.concat([iv, tag, encrypted]).toString('base64url')
